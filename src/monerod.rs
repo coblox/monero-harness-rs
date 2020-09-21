@@ -1,4 +1,4 @@
-use crate::{BlockHeader, Request};
+use crate::{BlockHeader, Request, Response};
 
 use anyhow::Result;
 use reqwest::Url;
@@ -38,7 +38,7 @@ impl Client {
             .text()
             .await?;
 
-        let res: GetBlockHeaderByHeightResponse = serde_json::from_str(&response)?;
+        let res: Response<GetBlockHeaderByHeight> = serde_json::from_str(&response)?;
 
         Ok(res.result.block_header)
     }
@@ -50,14 +50,7 @@ struct GetBlockHeaderByHeightParams {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-struct GetBlockHeaderByHeightResponse {
-    pub id: String,
-    pub jsonrpc: String,
-    pub result: GetBlockHeaderByHeightResponseData,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct GetBlockHeaderByHeightResponseData {
+struct GetBlockHeaderByHeight {
     pub block_header: BlockHeader,
     pub status: String,
     pub untrusted: bool,

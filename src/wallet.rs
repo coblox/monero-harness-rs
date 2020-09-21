@@ -1,4 +1,4 @@
-use crate::Request;
+use crate::{Request, Response};
 
 use anyhow::Result;
 use reqwest::Url;
@@ -38,7 +38,7 @@ impl Client {
             .text()
             .await?;
 
-        let res: GetBalanceResponse = serde_json::from_str(&response)?;
+        let res: Response<GetBalance> = serde_json::from_str(&response)?;
         let balance = res.result.balance;
 
         Ok(balance)
@@ -51,14 +51,7 @@ struct GetBalanceParams {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-struct GetBalanceResponse {
-    pub id: String,
-    pub jsonrpc: String,
-    pub result: GetBalanceResponseData,
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-struct GetBalanceResponseData {
+struct GetBalance {
     pub balance: u32,
     pub blocks_to_unlock: u32,
     pub multisig_import_needed: bool,

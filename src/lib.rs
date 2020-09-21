@@ -22,16 +22,19 @@
 //! - Send initial amount of moneroj to Alice's address from the primary
 //!   account.
 
+mod monerod;
 mod wallet;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 const MONERO_WALLET_RPC_PORT: u16 = 2021; // Arbitrarily chosen.
+const MONEROD_RPC_PORT: u16 = 38081; // Default stagenet port.
 
 /// RPC client for monerod and monero-wallet-rpc.
 #[derive(Debug)]
 pub struct Client {
     pub wallet: wallet::Client,
+    pub monerod: monerod::Client,
 }
 
 impl Default for Client {
@@ -39,8 +42,29 @@ impl Default for Client {
         Self {
             wallet: wallet::Client::localhost(MONERO_WALLET_RPC_PORT)
                 .expect("failed to create wallet client"),
+            monerod: monerod::Client::localhost(MONEROD_RPC_PORT)
+                .expect("failed to create monerod client"),
         }
     }
+}
+
+// We should be able to use monero-rs for this but it does not include all
+// the fields.
+#[derive(Clone, Debug, Deserialize)]
+pub struct BlockHeader {
+    block_size: u32,
+    depth: u32,
+    difficulty: u32,
+    hash: String,
+    height: u32,
+    major_version: u32,
+    minor_version: u32,
+    nonce: u32,
+    num_txes: u32,
+    orphan_status: bool,
+    prev_hash: String,
+    reward: u64,
+    timestamp: u32,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -55,6 +79,7 @@ pub struct Request<T> {
     params: T,
 }
 
+/// JSON RPC request.
 impl<T> Request<T> {
     pub fn new(method: &str, params: T) -> Self {
         Self {
@@ -64,6 +89,14 @@ impl<T> Request<T> {
             params,
         }
     }
+}
+
+/// JSON RPC response.
+#[derive(Deserialize, Serialize, Debug, Clone)]
+struct Response<T> {
+    pub id: String,
+    pub jsonrpc: String,
+    pub result: T,
 }
 
 #[cfg(test)]
