@@ -173,50 +173,18 @@ mod tests {
     use spectral::prelude::*;
     use std::fs;
 
-    // These tests make state changes (to the filesystem and to the wallet), it is
-    // not suggested to just run them all but rather run them individually while
-    // watching your monero node setup.
+    // Must use monero-wallet-rpc --wallet-dir WALLET_DIR
+    const WALLET_DIR: &str = "/tmp/monero/";
+    // Must use monero-wallet-rpc --rpc-bind-port PORT
+    const PORT: u16 = 2021;
 
     fn cli() -> Client {
-        // TODO: Make this test executable on CI.
-        Client::localhost(2021).unwrap()
+        Client::localhost(PORT).unwrap()
     }
 
     #[tokio::test]
-    async fn get_balance() {
-        let cli = cli();
-        let got = cli.get_balance().await.expect("failed to get balance");
-        let want = 0;
-
-        assert_that!(got).is_equal_to(want);
-    }
-
-    #[tokio::test]
-    async fn create_account() {
-        let cli = cli();
-        let label = "alice";
-
-        let accounts = cli.get_accounts("").await.expect("failed to get accounts");
-
-        let mut found: bool = false;
-        for account in accounts.subaddress_accounts {
-            if account.label == label {
-                found = true;
-            }
-        }
-
-        if !found {
-            let _ = cli
-                .create_account(label)
-                .await
-                .expect("failed to create account");
-        }
-
-        assert!(found);
-    }
-
-    #[tokio::test]
-    async fn create_wallet() {
+    #[ignore]
+    async fn wallet() {
         let cli = cli();
         let filename = "twallet";
 
@@ -224,5 +192,32 @@ mod tests {
             .create_wallet(filename)
             .await
             .expect("failed to create balance");
+
+        // Test we can get the balance.
+        let got = cli.get_balance().await.expect("failed to get balance");
+        let want = 0;
+        assert_that!(got).is_equal_to(want);
+
+        // Test we can create an account and retrieve it.
+        let label = "alice";
+
+        let _ = cli
+            .create_account(label)
+            .await
+            .expect("failed to create account");
+
+        let mut found: bool = false;
+        let accounts = cli.get_accounts("").await.expect("failed to get accounts");
+        for account in accounts.subaddress_accounts {
+            if account.label == label {
+                found = true;
+            }
+        }
+        assert!(found);
+
+        // Clean up
+        let path = format!("{}/{}", WALLET_DIR, filename);
+        fs::remove_file(path.clone())
+            .unwrap_or_else(|_| panic!("failed to remove wallet: {}", path));
     }
 }
