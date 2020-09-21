@@ -84,6 +84,34 @@ impl Client {
         let r: Response<GetAccounts> = serde_json::from_str(&response)?;
         Ok(r.result)
     }
+
+    // $ curl http://localhost:18082/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"create_wallet","params":{"filename":"mytestwallet","password":"mytestpassword","language":"English"}}' -H 'Content-Type: application/json'
+    // {
+    // "id": "0",
+    // "jsonrpc": "2.0",
+    // "result": {
+    // }
+    // }
+    // You need to have set the argument "–wallet-dir" when launching
+    // monero-wallet-rpc to make this work.
+    pub async fn create_wallet(&self, filename: &str) -> Result<()> {
+        let params = CreateWalletParams {
+            filename: filename.to_owned(),
+            language: "English".to_owned(),
+        };
+        let request = Request::new("create_wallet", params);
+
+        let _ = self
+            .inner
+            .post(self.url.clone())
+            .json(&request)
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        Ok(())
+    }
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -133,10 +161,21 @@ struct SubAddressAccount {
     unlocked_balance: u64,
 }
 
+#[derive(Serialize, Debug, Clone)]
+struct CreateWalletParams {
+    filename: String,
+    language: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use spectral::prelude::*;
+    use std::fs;
+
+    // These tests make state changes (to the filesystem and to the wallet), it is
+    // not suggested to just run them all but rather run them individually while
+    // watching your monero node setup.
 
     fn cli() -> Client {
         // TODO: Make this test executable on CI.
@@ -144,7 +183,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn can_get_balance() {
+    async fn get_balance() {
         let cli = cli();
         let got = cli.get_balance().await.expect("failed to get balance");
         let want = 0;
@@ -174,5 +213,16 @@ mod tests {
         }
 
         assert!(found);
+    }
+
+    #[tokio::test]
+    async fn create_wallet() {
+        let cli = cli();
+        let filename = "twallet";
+
+        let _ = cli
+            .create_wallet(filename)
+            .await
+            .expect("failed to create balance");
     }
 }
