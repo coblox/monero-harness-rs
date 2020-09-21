@@ -24,7 +24,7 @@ impl Client {
     }
 
     // curl http://127.0.0.1:2021/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"get_balance","params":{"account_index":0}}' -H 'Content-Type: application/json'
-    pub async fn get_balance(&self) -> Result<u32> {
+    pub async fn get_balance(&self) -> Result<u64> {
         let params = GetBalanceParams { account_index: 0 };
         let request = Request::new("get_balance", params);
 
@@ -51,11 +51,11 @@ struct GetBalanceParams {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 struct GetBalance {
-    balance: u32,
+    balance: u64,
     blocks_to_unlock: u32,
     multisig_import_needed: bool,
     time_to_unlock: u32,
-    unlocked_balance: u32,
+    unlocked_balance: u64,
 }
 
 #[cfg(test)]
