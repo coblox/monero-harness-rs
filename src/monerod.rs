@@ -27,11 +27,10 @@ impl Client {
     pub async fn get_block_header_by_height(&self, height: u32) -> Result<BlockHeader> {
         let params = GetBlockHeaderByHeightParams { height };
         let request = Request::new("get_block_header_by_height", params);
-        let url = format!("{}", self.url.clone());
 
         let response = self
             .inner
-            .post(&url)
+            .post(self.url.clone())
             .json(&request)
             .send()
             .await?

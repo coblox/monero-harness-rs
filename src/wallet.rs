@@ -27,11 +27,10 @@ impl Client {
     pub async fn get_balance(&self) -> Result<u32> {
         let params = GetBalanceParams { account_index: 0 };
         let request = Request::new("get_balance", params);
-        let url = format!("{}", self.url.clone());
 
         let response = self
             .inner
-            .post(&url)
+            .post(self.url.clone())
             .json(&request)
             .send()
             .await?
