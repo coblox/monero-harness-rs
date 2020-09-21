@@ -58,11 +58,44 @@ struct GetBlockHeaderByHeight {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use testcontainers::{clients, images, Image, Docker};
+    use std::{time, thread};
+    use testcontainers::core::Port;
 
     #[tokio::test]
     async fn can_get_genesis_block_header() {
+        let docker = clients::Cli::default();
+
+        let image = images::generic::GenericImage::new("xmrto/monero")
+            .with_mapped_port( Port {
+                local: 28081,
+                internal: 28081
+            })
+            .with_entrypoint("")
+            .with_args(vec![
+                "/bin/bash".to_string(),
+                "-c".to_string(),
+                "monerod --confirm-external-bind --non-interactive --regtest --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28081 --no-igd --hide-my-port --fixed-difficulty 1 --rpc-login username:password --data-dir /monero".to_string(),
+                /*"&&",
+ "monero-wallet-rpc" ,
+         "--log-level 4" \
+         --daemon-address localhost:28081 \
+         --confirm-external-bind \
+         --rpc-login username:password \
+         --rpc-bind-ip 0.0.0.0 \
+         --rpc-bind-port 28083 \
+         --daemon-login username:password \
+         --wallet-dir /monero/""*/
+            ]);
+        docker.run(image);
+
+        let ten_secs = time::Duration::from_secs(60);
+        thread::sleep(ten_secs);
+
+
+
         // TODO: Make this test executable on CI.
-        let cli = Client::localhost(38081).unwrap();
+        let cli = Client::localhost(28081).unwrap();
         let _ = cli
             .get_block_header_by_height(0)
             .await
