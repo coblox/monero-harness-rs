@@ -12,15 +12,7 @@
 )]
 #![forbid(unsafe_code)]
 
-//! # monero-harness
-//! A simple lib to start a monero container. Does the following:
-//!
-//! - Run docker container with monerod and monero-wallet-cli
-//! - Create a wallet.
-//! - Start monerod, mine to the wallet primary address.
-//! - Create two wallet sub accounts labelled Alice, and Bob.
-//! - Send initial amount of moneroj to Alice's address from the primary
-//!   account.
+//! Provides a JSON RPC client for monerod and monero-wallet-rpc
 
 mod monerod;
 mod wallet;
