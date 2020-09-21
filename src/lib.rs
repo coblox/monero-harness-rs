@@ -19,8 +19,8 @@ mod wallet;
 
 use serde::{Deserialize, Serialize};
 
-const MONERO_WALLET_RPC_PORT: u16 = 2021; // Arbitrarily chosen.
-const MONEROD_RPC_PORT: u16 = 38081; // Default stagenet port.
+const MONERO_WALLET_RPC_PORT: u16 = 28083; // Next available port after monerod's ports.
+const MONEROD_RPC_PORT: u16 = 28081; // Default testnet port.
 
 /// RPC client for monerod and monero-wallet-rpc.
 #[derive(Debug)]

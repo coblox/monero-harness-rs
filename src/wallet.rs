@@ -166,9 +166,9 @@ mod tests {
     use std::fs;
 
     // Must use monero-wallet-rpc --wallet-dir WALLET_DIR
-    const WALLET_DIR: &str = "/tmp/monero/";
+    const WALLET_DIR: &str = "/monero/";
     // Must use monero-wallet-rpc --rpc-bind-port PORT
-    const PORT: u16 = 2021;
+    const PORT: u16 = 28083;
 
     fn cli() -> Client {
         Client::localhost(PORT).unwrap()
@@ -207,9 +207,8 @@ mod tests {
         }
         assert!(found);
 
-        // Clean up
+        // Make an effort to clean up
         let path = format!("{}/{}", WALLET_DIR, filename);
-        fs::remove_file(path.clone())
-            .unwrap_or_else(|_| panic!("failed to remove wallet: {}", path));
+        let _ = fs::remove_file(path.clone());
     }
 }
