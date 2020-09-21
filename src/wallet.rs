@@ -42,6 +42,48 @@ impl Client {
 
         Ok(balance)
     }
+    // curl http://localhost:18082/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"create_account","params":{"label":"Secondary account"}}' -H 'Content-Type: application/json'
+    pub async fn create_account(&self, label: &str) -> Result<CreateAccount> {
+        let params = LabelParams {
+            label: label.to_owned(),
+        };
+        let request = Request::new("create_account", params);
+
+        let response = self
+            .inner
+            .post(self.url.clone())
+            .json(&request)
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        let r: Response<CreateAccount> = serde_json::from_str(&response)?;
+        Ok(r.result)
+    }
+
+    // $ curl http://localhost:18082/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"get_accounts","params":{"tag":"myTag"}}' -H 'Content-Type: application/json'
+
+    // TODO: Make tag optional.
+    /// Get accounts, filtered by tag.
+    pub async fn get_accounts(&self, tag: &str) -> Result<GetAccounts> {
+        let params = TagParams {
+            tag: tag.to_owned(),
+        };
+        let request = Request::new("get_accounts", params);
+
+        let response = self
+            .inner
+            .post(self.url.clone())
+            .json(&request)
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        let r: Response<GetAccounts> = serde_json::from_str(&response)?;
+        Ok(r.result)
+    }
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -49,7 +91,7 @@ struct GetBalanceParams {
     account_index: u32,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 struct GetBalance {
     balance: u64,
     blocks_to_unlock: u32,
@@ -58,18 +100,79 @@ struct GetBalance {
     unlocked_balance: u64,
 }
 
+#[derive(Serialize, Debug, Clone)]
+struct LabelParams {
+    label: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct CreateAccount {
+    account_index: u32,
+    address: String,
+}
+
+#[derive(Serialize, Debug, Clone)]
+struct TagParams {
+    tag: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct GetAccounts {
+    subaddress_accounts: Vec<SubAddressAccount>,
+    total_balance: u64,
+    total_unlocked_balance: u64,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct SubAddressAccount {
+    account_index: u32,
+    balance: u32,
+    base_address: String,
+    label: String,
+    tag: String,
+    unlocked_balance: u64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use spectral::prelude::*;
 
+    fn cli() -> Client {
+        // TODO: Make this test executable on CI.
+        Client::localhost(2021).unwrap()
+    }
+
     #[tokio::test]
     async fn can_get_balance() {
-        // TODO: Make this test executable on CI.
-        let cli = Client::localhost(2021).unwrap();
+        let cli = cli();
         let got = cli.get_balance().await.expect("failed to get balance");
         let want = 0;
 
         assert_that!(got).is_equal_to(want);
+    }
+
+    #[tokio::test]
+    async fn create_account() {
+        let cli = cli();
+        let label = "alice";
+
+        let accounts = cli.get_accounts("").await.expect("failed to get accounts");
+
+        let mut found: bool = false;
+        for account in accounts.subaddress_accounts {
+            if account.label == label {
+                found = true;
+            }
+        }
+
+        if !found {
+            let _ = cli
+                .create_account(label)
+                .await
+                .expect("failed to create account");
+        }
+
+        assert!(found);
     }
 }
