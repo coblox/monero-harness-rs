@@ -4,6 +4,15 @@ use anyhow::Result;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 
+// TODO: Either use println! directly or import tracing also?
+use std::println as debug;
+
+// TODO: Consider using bignum for moneroj instead of u64?
+
+const ACCOUNT_INDEX_PRIMARY: u32 = 0;
+const ACCOUNT_INDEX_ALICE: u32 = 1;
+const ACCOUNT_INDEX_BOB: u32 = 2;
+
 /// JSON RPC client for monero-wallet-rpc.
 #[derive(Debug)]
 pub struct Client {
@@ -23,9 +32,61 @@ impl Client {
         })
     }
 
-    // curl http://127.0.0.1:2021/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"get_balance","params":{"account_index":0}}' -H 'Content-Type: application/json'
-    pub async fn get_balance(&self) -> Result<u64> {
-        let params = GetBalanceParams { account_index: 0 };
+    /// Get addresses for the primary account.
+    pub async fn get_address_primary(&self) -> Result<GetAddressResponse> {
+        self.get_address(ACCOUNT_INDEX_PRIMARY).await
+    }
+
+    /// Get addresses for the Alice's account.
+    pub async fn get_address_alice(&self) -> Result<GetAddressResponse> {
+        self.get_address(ACCOUNT_INDEX_ALICE).await
+    }
+
+    /// Get addresses for the Bob's account.
+    pub async fn get_address_bob(&self) -> Result<GetAddressResponse> {
+        self.get_address(ACCOUNT_INDEX_BOB).await
+    }
+
+    /// Get addresses for account by index.
+    async fn get_address(&self, account_index: u32) -> Result<GetAddressResponse> {
+        let params = GetAddressParams { account_index };
+        let request = Request::new("get_address", params);
+
+        let response = self
+            .inner
+            .post(self.url.clone())
+            .json(&request)
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        debug!("get address RPC response: {}", response);
+
+        let r: Response<GetAddressResponse> = serde_json::from_str(&response)?;
+        Ok(r.result)
+    }
+
+    /// Gets the balance of the wallet primary account.
+    pub async fn get_balance_primary(&self) -> Result<u64> {
+        self.get_balance(ACCOUNT_INDEX_PRIMARY).await
+    }
+
+    /// Gets the balance of Alice's account.
+    pub async fn get_balance_alice(&self) -> Result<u64> {
+        self.get_balance(ACCOUNT_INDEX_ALICE).await
+    }
+
+    /// Gets the balance of Bob's account.
+    pub async fn get_balance_bob(&self) -> Result<u64> {
+        self.get_balance(ACCOUNT_INDEX_BOB).await
+    }
+
+    /// Gets the balance of account by index.
+    async fn get_balance(&self, index: u32) -> Result<u64> {
+        let params = GetBalanceParams {
+            account_index: index,
+        };
         let request = Request::new("get_balance", params);
 
         let response = self
@@ -37,12 +98,18 @@ impl Client {
             .text()
             .await?;
 
+        debug!(
+            "get balance of account index {} RPC response: {}",
+            index, response
+        );
+
         let res: Response<GetBalance> = serde_json::from_str(&response)?;
+
         let balance = res.result.balance;
 
         Ok(balance)
     }
-    // curl http://localhost:18082/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"create_account","params":{"label":"Secondary account"}}' -H 'Content-Type: application/json'
+
     pub async fn create_account(&self, label: &str) -> Result<CreateAccount> {
         let params = LabelParams {
             label: label.to_owned(),
@@ -58,11 +125,12 @@ impl Client {
             .text()
             .await?;
 
+        debug!("create account RPC response: {}", response);
+
         let r: Response<CreateAccount> = serde_json::from_str(&response)?;
         Ok(r.result)
     }
 
-    // $ curl http://localhost:18082/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"get_accounts","params":{"tag":"myTag"}}' -H 'Content-Type: application/json'
     /// Get accounts, filtered by tag ("" for no filtering).
     pub async fn get_accounts(&self, tag: &str) -> Result<GetAccounts> {
         let params = TagParams {
@@ -79,13 +147,14 @@ impl Client {
             .text()
             .await?;
 
+        debug!("get accounts RPC response: {}", response);
+
         let r: Response<GetAccounts> = serde_json::from_str(&response)?;
+
         Ok(r.result)
     }
 
-    // $ curl http://localhost:18082/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"create_wallet","params":{"filename":"mytestwallet","password":"mytestpassword","language":"English"}}' -H 'Content-Type: application/json'
-    // You need to have set the argument "–wallet-dir" when launching
-    // monero-wallet-rpc to make this work.
+    /// Creates a wallet using `filename`.
     pub async fn create_wallet(&self, filename: &str) -> Result<()> {
         let params = CreateWalletParams {
             filename: filename.to_owned(),
@@ -93,7 +162,7 @@ impl Client {
         };
         let request = Request::new("create_wallet", params);
 
-        let _ = self
+        let response = self
             .inner
             .post(self.url.clone())
             .json(&request)
@@ -102,8 +171,84 @@ impl Client {
             .text()
             .await?;
 
+        debug!("create wallet RPC response: {}", response);
+
         Ok(())
     }
+
+    /// Transfers moneroj from the primary account.
+    pub async fn transfer_from_primary(&self, amount: u64, address: String) -> Result<Transfer> {
+        let dest = vec![Destination { amount, address }];
+        self.multi_transfer(ACCOUNT_INDEX_PRIMARY, dest).await
+    }
+
+    /// Transfers moneroj from Alice's account.
+    pub async fn transfer_from_alice(&self, amount: u64, address: String) -> Result<Transfer> {
+        let dest = vec![Destination { amount, address }];
+        self.multi_transfer(ACCOUNT_INDEX_ALICE, dest).await
+    }
+
+    /// Transfers moneroj from Bob's account.
+    pub async fn transfer_from_bob(&self, amount: u64, address: String) -> Result<Transfer> {
+        let dest = vec![Destination { amount, address }];
+        self.multi_transfer(ACCOUNT_INDEX_BOB, dest).await
+    }
+
+    /// Transfers moneroj to multiple destinations.
+    async fn multi_transfer(
+        &self,
+        account_index: u32,
+        destinations: Vec<Destination>,
+    ) -> Result<Transfer> {
+        let params = TransferParams {
+            account_index,
+            destinations,
+        };
+        let request = Request::new("transfer", params);
+
+        let response = self
+            .inner
+            .post(self.url.clone())
+            .json(&request)
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        debug!("transfer RPC response: {}", response);
+
+        let r: Response<Transfer> = serde_json::from_str(&response)?;
+        Ok(r.result)
+    }
+
+    /// Get wallet block height, this might be behind monerod height
+    pub(crate) async fn block_height(&self) -> Result<BlockHeight> {
+        let request = Request::new("get_height", "");
+
+        let response = self
+            .inner
+            .post(self.url.clone())
+            .json(&request)
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        debug!("wallet height RPC response: {}", response);
+
+        let r: Response<BlockHeight> = serde_json::from_str(&response)?;
+        Ok(r.result)
+    }
+}
+
+#[derive(Serialize, Debug, Clone)]
+struct GetAddressParams {
+    account_index: u32,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct GetAddressResponse {
+    pub address: String,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -127,8 +272,8 @@ struct LabelParams {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct CreateAccount {
-    account_index: u32,
-    address: String,
+    pub account_index: u32,
+    pub address: String,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -138,19 +283,19 @@ struct TagParams {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct GetAccounts {
-    subaddress_accounts: Vec<SubAddressAccount>,
-    total_balance: u64,
-    total_unlocked_balance: u64,
+    pub subaddress_accounts: Vec<SubAddressAccount>,
+    pub total_balance: u64,
+    pub total_unlocked_balance: u64,
 }
 
 #[derive(Deserialize, Debug, Clone)]
-struct SubAddressAccount {
-    account_index: u32,
-    balance: u32,
-    base_address: String,
-    label: String,
-    tag: String,
-    unlocked_balance: u64,
+pub struct SubAddressAccount {
+    pub account_index: u32,
+    pub balance: u32,
+    pub base_address: String,
+    pub label: String,
+    pub tag: String,
+    pub unlocked_balance: u64,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -159,56 +304,31 @@ struct CreateWalletParams {
     language: String,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use spectral::prelude::*;
-    use std::fs;
+#[derive(Serialize, Debug, Clone)]
+struct TransferParams {
+    account_index: u32,
+    destinations: Vec<Destination>,
+}
 
-    // Must use monero-wallet-rpc --wallet-dir WALLET_DIR
-    const WALLET_DIR: &str = "/monero/";
-    // Must use monero-wallet-rpc --rpc-bind-port PORT
-    const PORT: u16 = 28083;
+#[derive(Serialize, Debug, Clone)]
+pub struct Destination {
+    amount: u64,
+    address: String,
+}
 
-    fn cli() -> Client {
-        Client::localhost(PORT).unwrap()
-    }
+#[derive(Deserialize, Debug, Clone)]
+pub struct Transfer {
+    amount: u64,
+    fee: u64,
+    multisig_txset: String,
+    tx_blob: String,
+    tx_hash: String,
+    tx_key: String,
+    tx_metadata: String,
+    unsigned_txset: String,
+}
 
-    #[tokio::test]
-    #[ignore]
-    async fn wallet() {
-        let cli = cli();
-        let filename = "twallet";
-
-        let _ = cli
-            .create_wallet(filename)
-            .await
-            .expect("failed to create balance");
-
-        // Test we can get the balance.
-        let got = cli.get_balance().await.expect("failed to get balance");
-        let want = 0;
-        assert_that!(got).is_equal_to(want);
-
-        // Test we can create an account and retrieve it.
-        let label = "alice";
-
-        let _ = cli
-            .create_account(label)
-            .await
-            .expect("failed to create account");
-
-        let mut found: bool = false;
-        let accounts = cli.get_accounts("").await.expect("failed to get accounts");
-        for account in accounts.subaddress_accounts {
-            if account.label == label {
-                found = true;
-            }
-        }
-        assert!(found);
-
-        // Make an effort to clean up
-        let path = format!("{}/{}", WALLET_DIR, filename);
-        let _ = fs::remove_file(path.clone());
-    }
+#[derive(Clone, Debug, Deserialize)]
+pub struct BlockHeight {
+    pub height: u32,
 }
