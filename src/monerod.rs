@@ -50,9 +50,9 @@ struct GetBlockHeaderByHeightParams {
 
 #[derive(Clone, Debug, Deserialize)]
 struct GetBlockHeaderByHeight {
-    pub block_header: BlockHeader,
-    pub status: String,
-    pub untrusted: bool,
+    block_header: BlockHeader,
+    status: String,
+    untrusted: bool,
 }
 
 #[cfg(test)]

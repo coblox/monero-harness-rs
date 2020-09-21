@@ -51,11 +51,11 @@ struct GetBalanceParams {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 struct GetBalance {
-    pub balance: u32,
-    pub blocks_to_unlock: u32,
-    pub multisig_import_needed: bool,
-    pub time_to_unlock: u32,
-    pub unlocked_balance: u32,
+    balance: u32,
+    blocks_to_unlock: u32,
+    multisig_import_needed: bool,
+    time_to_unlock: u32,
+    unlocked_balance: u32,
 }
 
 #[cfg(test)]
