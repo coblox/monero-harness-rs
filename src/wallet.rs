@@ -63,9 +63,7 @@ impl Client {
     }
 
     // $ curl http://localhost:18082/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"get_accounts","params":{"tag":"myTag"}}' -H 'Content-Type: application/json'
-
-    // TODO: Make tag optional.
-    /// Get accounts, filtered by tag.
+    /// Get accounts, filtered by tag ("" for no filtering).
     pub async fn get_accounts(&self, tag: &str) -> Result<GetAccounts> {
         let params = TagParams {
             tag: tag.to_owned(),
@@ -86,12 +84,6 @@ impl Client {
     }
 
     // $ curl http://localhost:18082/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"create_wallet","params":{"filename":"mytestwallet","password":"mytestpassword","language":"English"}}' -H 'Content-Type: application/json'
-    // {
-    // "id": "0",
-    // "jsonrpc": "2.0",
-    // "result": {
-    // }
-    // }
     // You need to have set the argument "–wallet-dir" when launching
     // monero-wallet-rpc to make this work.
     pub async fn create_wallet(&self, filename: &str) -> Result<()> {
