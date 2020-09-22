@@ -55,7 +55,7 @@ impl<'c> Client<'c> {
                 "/bin/bash".to_string(),
                 "-c".to_string(),
                 "monerod --confirm-external-bind --non-interactive --regtest --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28081 --no-igd --hide-my-port --fixed-difficulty 1 --rpc-payment-allow-free-loopback --data-dir /monero & \
-                monero-wallet-rpc --log-level 4 --daemon-address localhost:28081 --confirm-external-bind --rpc-login username:password --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28083 --daemon-login username:password --wallet-dir /monero/".to_string(),
+                monero-wallet-rpc --log-level 4 --daemon-address localhost:28081 --confirm-external-bind --disable-rpc-login --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28083  --wallet-dir /monero/".to_string(),
             ])
             .with_wait_for(WaitFor::LogMessage { message: "You are now synchronized with the network. You may now start monero-wallet-cli".to_string(), stream: Stream::StdOut });
         let container = docker_client.run(image);
