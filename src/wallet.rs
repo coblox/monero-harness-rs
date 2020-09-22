@@ -209,6 +209,6 @@ mod tests {
 
         // Make an effort to clean up
         let path = format!("{}/{}", WALLET_DIR, filename);
-        let _ = fs::remove_file(path.clone());
+        let _ = fs::remove_file(path);
     }
 }

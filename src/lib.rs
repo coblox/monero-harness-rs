@@ -1,14 +1,14 @@
 #![warn(
-unused_extern_crates,
-missing_debug_implementations,
-missing_copy_implementations,
-rust_2018_idioms,
-clippy::cast_possible_truncation,
-clippy::cast_sign_loss,
-clippy::fallible_impl_from,
-clippy::cast_precision_loss,
-clippy::cast_possible_wrap,
-clippy::dbg_macro
+    unused_extern_crates,
+    missing_debug_implementations,
+    missing_copy_implementations,
+    rust_2018_idioms,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::fallible_impl_from,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_wrap,
+    clippy::dbg_macro
 )]
 #![forbid(unsafe_code)]
 
@@ -19,14 +19,8 @@ mod wallet;
 
 use serde::{Deserialize, Serialize};
 
-<<<<<<< Updated upstream
 const MONERO_WALLET_RPC_PORT: u16 = 28083; // Next available port after monerod's ports.
 const MONEROD_RPC_PORT: u16 = 28081; // Default testnet port.
-=======
-const MONERO_WALLET_RPC_PORT: u16 = 2021;
-// Arbitrarily chosen.
-const MONEROD_RPC_PORT: u16 = 38081; // Default stagenet port.
->>>>>>> Stashed changes
 
 /// RPC client for monerod and monero-wallet-rpc.
 #[derive(Debug)]
@@ -101,8 +95,7 @@ struct Response<T> {
 mod tests {
     use super::*;
     use spectral::prelude::*;
-    use testcontainers;
-    use testcontainers::{clients, images, Image, Docker};
+    use testcontainers::{self, clients, images, Docker, Image};
 
     #[derive(Serialize, Debug, Clone)]
     struct Params {
@@ -133,7 +126,8 @@ mod tests {
     fn start_monerod_container() {
         let docker = clients::Cli::default();
 
-        let image = images::generic::GenericImage::new("xmrto/monero").with_entrypoint("")
+        let image = images::generic::GenericImage::new("xmrto/monero")
+            .with_entrypoint("")
             .with_args(vec![
                 "/bin/bash  -c \" ".to_string(),
                 "monerod".to_string(),
@@ -147,18 +141,18 @@ mod tests {
                 "--fixed-difficulty 1".to_string(),
                 "--rpc-login username:password".to_string(),
                 "--data-dir /monero --detach".to_string(),
-                "\" ".to_string()
+                "\" ".to_string(),
             ]);
         docker.run(image);
-        /*"&&",
-        "monero-wallet-rpc" ,
-                "--log-level 4" \
-                --daemon-address localhost:28081 \
-                --confirm-external-bind \
-                --rpc-login username:password \
-                --rpc-bind-ip 0.0.0.0 \
-                --rpc-bind-port 28083 \
-                --daemon-login username:password \
-                --wallet-dir /monero/""*/
+        // "&&",
+        // "monero-wallet-rpc" ,
+        // "--log-level 4" \
+        // --daemon-address localhost:28081 \
+        // --confirm-external-bind \
+        // --rpc-login username:password \
+        // --rpc-bind-ip 0.0.0.0 \
+        // --rpc-bind-port 28083 \
+        // --daemon-login username:password \
+        // --wallet-dir /monero/""
     }
 }
