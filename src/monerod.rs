@@ -87,24 +87,27 @@ mod tests {
                 local: 28081,
                 internal: 28081,
             })
+            .with_mapped_port(Port {
+                local: 28083,
+                internal: 28083,
+            })
             .with_entrypoint("")
             .with_args(vec![
-                // "/bin/bash".to_string(),
-                // "-c".to_string(),
-                "monerod".to_string(),
-                /*                "monerod --confirm-external-bind --non-interactive --regtest
-                 * --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28081 --no-igd --hide-my-port
-                 * --fixed-difficulty 1 --rpc-payment-allow-free-loopback --data-dir
-                 * /monero".to_string(), */
+                "/bin/bash".to_string(),
+                "-c".to_string(),
+                "monerod --confirm-external-bind --non-interactive --regtest --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28081 --no-igd --hide-my-port --fixed-difficulty 1 --rpc-payment-allow-free-loopback --data-dir /monero --detach && \
+                monero-wallet-rpc --log-level 4 --daemon-address localhost:28081 --confirm-external-bind --rpc-login username:password --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28083 --daemon-login username:password --wallet-dir /monero/".to_string(),
             ]);
-        docker.run(image);
+        let node = docker.run(image);
 
-        tokio::time::delay_for(Duration::from_secs(30)).await;
+        tokio::time::delay_for(Duration::from_secs(60)).await;
 
         let cli = Client::localhost(28081).unwrap();
-        let _ = cli
+        let value = cli
             .get_block_header_by_height(0)
             .await
             .expect("failed to get block 0");
+
+        assert_eq!(0, value.height);
     }
 }
