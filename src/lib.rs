@@ -29,8 +29,12 @@ use testcontainers::{
     Container, Docker, Image,
 };
 
+/// When creating an account for Alice fund it with this amount of moneroj.
 const INITIAL_FUNDS_ALICE: u64 = 1000;
-const BLOCK_TIME_SECS: u32: = 1; // Mine a block every second.
+/// How often we mine a block.
+const BLOCK_TIME_SECS: u32 = 1;
+/// Poll interval when checking if the wallet has synced with monerod.
+const BLOCK_TIME_SECS: u32 = 200;
 
 /// RPC client for monerod and monero-wallet-rpc.
 #[derive(Debug)]
@@ -125,7 +129,7 @@ impl<'c> Client<'c> {
     // It takes a little while for the wallet to sync with monerod.
     async fn wait_for_wallet_block_height(&self, height: u32) -> Result<()> {
         while self.wallet.block_height().await?.height < height {
-            tokio::time::delay_for(Duration::from_secs(1)).await;
+            tokio::time::delay_for(Duration::from_millis(WAIT_WALLET_SYNC_MILLIS)).await;
         }
         Ok(())
     }
