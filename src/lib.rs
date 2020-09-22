@@ -18,23 +18,47 @@ mod monerod;
 mod wallet;
 
 use serde::{Deserialize, Serialize};
-
-const MONERO_WALLET_RPC_PORT: u16 = 28083; // Next available port after monerod's ports.
-const MONEROD_RPC_PORT: u16 = 28081; // Default testnet port.
+use testcontainers::core::Port;
+use testcontainers::images::generic::{GenericImage, Stream, WaitFor};
+use testcontainers::{clients, images, Container, Docker, Image};
 
 /// RPC client for monerod and monero-wallet-rpc.
 #[derive(Debug)]
-pub struct Client {
+pub struct Client<'c> {
+    container: Container<'c, clients::Cli, GenericImage>,
     pub wallet: wallet::Client,
     pub monerod: monerod::Client,
 }
 
-impl Default for Client {
-    fn default() -> Self {
+impl<'c> Client<'c> {
+    pub fn new(
+        docker_client: &'c clients::Cli,
+        monerod_rpc_port: u16,
+        wallet_rpc_port: u16,
+    ) -> Self {
+        let image = images::generic::GenericImage::new("xmrto/monero")
+            .with_mapped_port(Port {
+                local: monerod_rpc_port,
+                internal: 28081,
+            })
+            .with_mapped_port(Port {
+                local: wallet_rpc_port,
+                internal: 28083,
+            })
+            .with_entrypoint("")
+            .with_args(vec![
+                "/bin/bash".to_string(),
+                "-c".to_string(),
+                "monerod --confirm-external-bind --non-interactive --regtest --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28081 --no-igd --hide-my-port --fixed-difficulty 1 --rpc-payment-allow-free-loopback --data-dir /monero & \
+                monero-wallet-rpc --log-level 4 --daemon-address localhost:28081 --confirm-external-bind --rpc-login username:password --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28083 --daemon-login username:password --wallet-dir /monero/".to_string(),
+            ])
+            .with_wait_for(WaitFor::LogMessage { message: "You are now synchronized with the network. You may now start monero-wallet-cli".to_string(), stream: Stream::StdOut });
+        let container = docker_client.run(image);
         Self {
-            wallet: wallet::Client::localhost(MONERO_WALLET_RPC_PORT)
+            container,
+            wallet: wallet::Client::localhost(wallet_rpc_port)
                 .expect("failed to create wallet client"),
-            monerod: monerod::Client::localhost(MONEROD_RPC_PORT)
+            monerod: monerod::Client::localhost(monerod_rpc_port)
                 .expect("failed to create monerod client"),
         }
     }
@@ -95,7 +119,7 @@ struct Response<T> {
 mod tests {
     use super::*;
     use spectral::prelude::*;
-    use testcontainers::{self, clients, images, Docker, Image};
+    use testcontainers::{self, clients};
 
     #[derive(Serialize, Debug, Clone)]
     struct Params {
@@ -117,8 +141,17 @@ mod tests {
         assert_that!(got).is_equal_to(want);
     }
 
-    #[test]
-    fn can_create_a_client() {
-        let _ = Client::default();
+    #[tokio::test]
+    async fn can_get_genesis_block_header() {
+        let docker_client = clients::Cli::default();
+        let client = Client::new(&docker_client, 28081, 28083);
+
+        let block_header = client
+            .monerod
+            .get_block_header_by_height(0)
+            .await
+            .expect("failed to get block 0");
+
+        assert_eq!(0, block_header.height);
     }
 }
