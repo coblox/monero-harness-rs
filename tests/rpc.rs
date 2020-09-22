@@ -64,7 +64,7 @@ async fn create_account_and_retrieve_it() {
     let docker = clients::Cli::default();
     let cli = Client::new_with_random_local_ports(&docker);
 
-    let label = ""; // This is intentionally _not_ Alice or Bob.
+    let label = "Arbitrary Label"; // This is intentionally _not_ Alice or Bob.
 
     let _ = cli
         .wallet
@@ -81,7 +81,7 @@ async fn create_account_and_retrieve_it() {
     let mut found: bool = false;
     let accounts = cli
         .wallet
-        .get_accounts("")
+        .get_accounts("") // Empty filter.
         .await
         .expect("failed to get accounts");
     for account in accounts.subaddress_accounts {
@@ -92,28 +92,28 @@ async fn create_account_and_retrieve_it() {
     assert!(found);
 }
 
-// #[tokio::test]
-// async fn init_accounts_for_alice_and_bob() {
-//     let docker = clients::Cli::default();
-//     let cli = Client::new_with_random_local_ports(&docker);
+#[tokio::test]
+async fn init_accounts_for_alice_and_bob() {
+    let docker = clients::Cli::default();
+    let cli = Client::new_with_random_local_ports(&docker);
 
-//     cli.init(60).await.expect("failed to init");
+    cli.init_with_accounts().await.expect("failed to init");
 
-//     let want_alice_balance = 1000;
-//     let want_bob_balance = 0;
+    let want_alice_balance = 1000;
+    let want_bob_balance = 0;
 
-//     let got_alice_balance = cli
-//         .wallet
-//         .get_balance_alice()
-//         .await
-//         .expect("failed to get alice's balance");
+    let got_alice_balance = cli
+        .wallet
+        .get_balance_alice()
+        .await
+        .expect("failed to get alice's balance");
 
-//     let got_bob_balance = cli
-//         .wallet
-//         .get_balance_bob()
-//         .await
-//         .expect("failed to get bob's balance");
+    let got_bob_balance = cli
+        .wallet
+        .get_balance_bob()
+        .await
+        .expect("failed to get bob's balance");
 
-//     assert_that!(got_alice_balance).is_equal_to(want_alice_balance);
-//     assert_that!(got_bob_balance).is_equal_to(want_bob_balance);
-// }
+    assert_that!(got_alice_balance).is_equal_to(want_alice_balance);
+    assert_that!(got_bob_balance).is_equal_to(want_bob_balance);
+}

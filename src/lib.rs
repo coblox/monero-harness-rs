@@ -78,15 +78,30 @@ impl<'c> Client<'c> {
         Client::new(cli, monerod_port, wallet_port)
     }
 
+    /// Initialise by creating a wallet, generating some `blocks`, and starting
+    /// a miner thread that mines to the primary account.
     pub async fn init(&self, blocks: u32) -> Result<()> {
         self.wallet.create_wallet("miner_wallet").await?;
-        let miner_address = self.wallet.get_address(0, 0).await?.address;
+        let miner_address = self.wallet.get_address_primary().await?.address;
 
         self.monerod
             .generate_blocks(blocks, miner_address.clone())
             .await?;
         let _ = tokio::spawn(mine(self.monerod.clone(), miner_address.clone()));
 
+        Ok(())
+    }
+
+    // TODO: This is separate from init() in order to debug, consider merging the
+    // two methods onec its all functional and tested.
+    pub async fn init_with_accounts(&self) -> Result<()> {
+        let _ = self.init(60).await?;
+        tokio::time::delay_for(Duration::from_secs(1)).await;
+
+        let miner = self.wallet.get_address_primary().await?.address;
+
+        self.monerod.generate_blocks(20, miner).await?;
+        tokio::time::delay_for(Duration::from_secs(1)).await;
         self.wallet.init_accounts().await?;
 
         Ok(())
