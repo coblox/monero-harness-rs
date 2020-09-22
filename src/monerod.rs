@@ -4,6 +4,12 @@ use anyhow::Result;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 
+#[cfg(not(test))]
+use tracing::debug;
+
+#[cfg(test)]
+use std::eprintln as debug;
+
 /// RPC client for monerod and monero-wallet-rpc.
 #[derive(Debug, Clone)]
 pub struct Client {
@@ -42,7 +48,8 @@ impl Client {
             .await?
             .text()
             .await?;
-        println!("{}", response);
+
+        debug!("generate blocks response: {}", response);
 
         let res: Response<GenerateBlocksResult> = serde_json::from_str(&response)?;
 
@@ -62,6 +69,8 @@ impl Client {
             .await?
             .text()
             .await?;
+
+        debug!("get block header by height response: {}", response);
 
         let res: Response<GetBlockHeaderByHeight> = serde_json::from_str(&response)?;
 

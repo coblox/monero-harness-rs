@@ -17,6 +17,7 @@
 mod monerod;
 mod wallet;
 
+use anyhow::Result;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -77,7 +78,7 @@ impl<'c> Client<'c> {
         Client::new(cli, monerod_port, wallet_port)
     }
 
-    pub async fn init(&self, blocks: u32) -> anyhow::Result<()> {
+    pub async fn init(&self, blocks: u32) -> Result<()> {
         self.wallet.create_wallet("miner_wallet").await?;
         let miner_address = self.wallet.get_address(0, 0).await?.address;
 
@@ -86,11 +87,13 @@ impl<'c> Client<'c> {
             .await?;
         let _ = tokio::spawn(mine(self.monerod.clone(), miner_address.clone()));
 
+        self.wallet.init_accounts().await?;
+
         Ok(())
     }
 }
 
-async fn mine(monerod: monerod::Client, reward_address: String) -> anyhow::Result<()> {
+async fn mine(monerod: monerod::Client, reward_address: String) -> Result<()> {
     loop {
         tokio::time::delay_for(Duration::from_secs(1)).await;
         monerod.generate_blocks(1, reward_address.clone()).await?;

@@ -1,14 +1,22 @@
 use crate::{Request, Response};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 
-#[cfg(not(test))]
-use tracing::debug;
+// #[cfg(not(test))]
+// use tracing::debug;
 
-#[cfg(test)]
+// #[cfg(test)]
 use std::println as debug;
+
+// TODO: Consider using bignum for moneroj instead of u64?
+
+const INITIAL_FUNDS_ALICE: u64 = 1000;
+
+const ACCOUNT_INDEX_PRIMARY: u32 = 0;
+const ACCOUNT_INDEX_ALICE: u32 = 1;
+const ACCOUNT_INDEX_BOB: u32 = 2;
 
 /// JSON RPC client for monero-wallet-rpc.
 #[derive(Debug)]
@@ -30,7 +38,7 @@ impl Client {
     }
 
     // $ curl -X POST http://127.0.0.1:28083/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"get_address","params":{"account_index":0,"address_index":[0]}}' -H 'Content-Type: application/json'
-    /// Get addresses for account and index
+    /// Get addresses for account and index.
     pub async fn get_address(
         &self,
         account_index: u32,
@@ -51,13 +59,32 @@ impl Client {
             .text()
             .await?;
 
+        debug!("get address RPC response: {}", response);
+
         let r: Response<GetAddressResponse> = serde_json::from_str(&response)?;
         Ok(r.result)
     }
 
-    // curl http://127.0.0.1:2021/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"get_balance","params":{"account_index":0}}' -H 'Content-Type: application/json'
-    pub async fn get_balance(&self) -> Result<u64> {
-        let params = GetBalanceParams { account_index: 0 };
+    /// Gets the balance of the wallet primary account.
+    pub async fn get_balance_primary(&self) -> Result<u64> {
+        self.get_balance_for_account(ACCOUNT_INDEX_PRIMARY).await
+    }
+
+    /// Gets the balance of Alice's account.
+    pub async fn get_balance_alice(&self) -> Result<u64> {
+        self.get_balance_for_account(ACCOUNT_INDEX_ALICE).await
+    }
+
+    /// Gets the balance of Bob's account.
+    pub async fn get_balance_bob(&self) -> Result<u64> {
+        self.get_balance_for_account(ACCOUNT_INDEX_BOB).await
+    }
+
+    /// Gets the total balance of the wallet.
+    pub async fn get_balance_for_account(&self, index: u32) -> Result<u64> {
+        let params = GetBalanceParams {
+            account_index: index,
+        };
         let request = Request::new("get_balance", params);
 
         let response = self
@@ -69,11 +96,44 @@ impl Client {
             .text()
             .await?;
 
+        debug!(
+            "get balance of account index {} RPC response: {}",
+            index, response
+        );
+
         let res: Response<GetBalance> = serde_json::from_str(&response)?;
+
         let balance = res.result.balance;
 
         Ok(balance)
     }
+
+    /// Create accounts Alice and Bob, do initial funding from the primary
+    /// account.
+    pub async fn init_accounts(&self) -> Result<()> {
+        let balance = self.get_balance_primary().await?;
+        if balance < INITIAL_FUNDS_ALICE {
+            return Err(anyhow!(
+                "insufficient funds {}, consider initialising with more blocks",
+                balance,
+            ));
+        }
+
+        let alice = self.create_account("alice").await?;
+        let bob = self.create_account("bob").await?;
+
+        debug_assert!(alice.account_index == ACCOUNT_INDEX_ALICE);
+        debug_assert!(bob.account_index == ACCOUNT_INDEX_BOB);
+
+        self.transfer_from_primary(INITIAL_FUNDS_ALICE, alice.address)
+            .await?;
+
+        let balance = self.get_balance_alice().await?;
+        debug_assert!(balance == INITIAL_FUNDS_ALICE);
+
+        Ok(())
+    }
+
     // curl http://localhost:18082/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"create_account","params":{"label":"Secondary account"}}' -H 'Content-Type: application/json'
     pub async fn create_account(&self, label: &str) -> Result<CreateAccount> {
         let params = LabelParams {
@@ -90,7 +150,7 @@ impl Client {
             .text()
             .await?;
 
-        debug!("create account response: {}", response);
+        debug!("create account RPC response: {}", response);
 
         let r: Response<CreateAccount> = serde_json::from_str(&response)?;
         Ok(r.result)
@@ -113,9 +173,9 @@ impl Client {
             .text()
             .await?;
 
-        let r: Response<GetAccounts> = serde_json::from_str(&response)?;
+        debug!("get accounts RPC response: {}", response);
 
-        debug!("create account response: {}", r);
+        let r: Response<GetAccounts> = serde_json::from_str(&response)?;
 
         Ok(r.result)
     }
@@ -128,7 +188,7 @@ impl Client {
         };
         let request = Request::new("create_wallet", params);
 
-        let r = self
+        let response = self
             .inner
             .post(self.url.clone())
             .json(&request)
@@ -137,9 +197,59 @@ impl Client {
             .text()
             .await?;
 
-        debug!("create account response: {}", r);
+        debug!("create wallet RPC response: {}", response);
 
         Ok(())
+    }
+
+    /// Transfers moneroj from the primary account.
+    pub async fn transfer_from_primary(&self, amount: u64, address: String) -> Result<Transfer> {
+        let dest = vec![Destination {
+            account_index: ACCOUNT_INDEX_PRIMARY,
+            amount,
+            address,
+        }];
+        self.multi_transfer(dest).await
+    }
+
+    /// Transfers moneroj from the primary account.
+    pub async fn transfer_from_alice(&self, amount: u64, address: String) -> Result<Transfer> {
+        let dest = vec![Destination {
+            account_index: ACCOUNT_INDEX_ALICE,
+            amount,
+            address,
+        }];
+        self.multi_transfer(dest).await
+    }
+
+    /// Transfers moneroj from the primary account.
+    pub async fn transfer_from_bob(&self, amount: u64, address: String) -> Result<Transfer> {
+        let dest = vec![Destination {
+            account_index: ACCOUNT_INDEX_BOB,
+            amount,
+            address,
+        }];
+        self.multi_transfer(dest).await
+    }
+
+    /// Transfers moneroj from the primary account to multiple destinations.
+    pub async fn multi_transfer(&self, destinations: Vec<Destination>) -> Result<Transfer> {
+        let params = TransferParams { destinations };
+        let request = Request::new("transfer", params);
+
+        let response = self
+            .inner
+            .post(self.url.clone())
+            .json(&request)
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        debug!("transfer RPC response: {}", response);
+
+        let r: Response<Transfer> = serde_json::from_str(&response)?;
+        Ok(r.result)
     }
 }
 
@@ -174,8 +284,8 @@ struct LabelParams {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct CreateAccount {
-    account_index: u32,
-    address: String,
+    pub account_index: u32,
+    pub address: String,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -204,4 +314,28 @@ pub struct SubAddressAccount {
 struct CreateWalletParams {
     filename: String,
     language: String,
+}
+
+#[derive(Serialize, Debug, Clone)]
+struct TransferParams {
+    destinations: Vec<Destination>,
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct Destination {
+    account_index: u32,
+    amount: u64,
+    address: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct Transfer {
+    amount: u64,
+    fee: u64,
+    multisig_txset: String,
+    tx_blob: String,
+    tx_hash: String,
+    tx_key: String,
+    tx_metadata: String,
+    unsigned_txset: String,
 }
