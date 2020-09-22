@@ -4,10 +4,10 @@ use anyhow::Result;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 
-#[cfg(not(test))]
-use tracing::debug;
-
-#[cfg(test)]
+// #[cfg(not(test))]
+// use tracing::debug;
+//
+// #[cfg(test)]
 use std::eprintln as debug;
 
 /// RPC client for monerod and monero-wallet-rpc.
@@ -87,7 +87,7 @@ struct GenerateBlocksParams {
 #[derive(Clone, Debug, Deserialize)]
 pub struct GenerateBlocksResult {
     blocks: Vec<String>,
-    height: u32,
+    pub(crate) height: u32,
     status: String,
 }
 

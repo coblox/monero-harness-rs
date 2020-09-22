@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 // #[cfg(test)]
 use std::println as debug;
+use std::time::Duration;
 
 // TODO: Consider using bignum for moneroj instead of u64?
 
@@ -40,6 +41,15 @@ impl Client {
     /// Create accounts Alice and Bob, do initial funding from the primary
     /// account.
     pub async fn init_accounts(&self) -> Result<()> {
+        // Wait for wallet to catch up
+
+        while self.block_height().await?.height < 50 {
+            // TODO: Should check that wallet indexed amout of blocks mined earlier
+            tokio::time::delay_for(Duration::from_secs(1)).await;
+        }
+
+        let block_height = self.block_height().await?;
+        debug!("Current block height: {}", block_height.height);
         let balance = self.get_balance_primary().await?;
         if balance < INITIAL_FUNDS_ALICE {
             return Err(anyhow!(
@@ -48,17 +58,19 @@ impl Client {
             ));
         }
 
-        let alice = self.create_account("alice").await?;
-        let bob = self.create_account("bob").await?;
+        // moved one level up
+        // let alice = self.create_account("alice").await?;
+        // let bob = self.create_account("bob").await?;
 
-        debug_assert!(alice.account_index == ACCOUNT_INDEX_ALICE);
-        debug_assert!(bob.account_index == ACCOUNT_INDEX_BOB);
+        // debug_assert!(alice.account_index == ACCOUNT_INDEX_ALICE);
+        // debug_assert!(bob.account_index == ACCOUNT_INDEX_BOB);
 
-        self.transfer_from_primary(INITIAL_FUNDS_ALICE, alice.address)
-            .await?;
-
-        let balance = self.get_balance_alice().await?;
-        debug_assert!(balance == INITIAL_FUNDS_ALICE);
+        let block_height = self.block_height().await?;
+        debug!("Current blockheight: {}", block_height.height);
+        let balance_alice = self.get_balance_alice().await?;
+        debug!("Current balance_alice: {}", balance_alice);
+        // self.transfer_from_primary(INITIAL_FUNDS_ALICE, alice.address)
+        //     .await?;
 
         Ok(())
     }
@@ -209,37 +221,32 @@ impl Client {
 
     /// Transfers moneroj from the primary account.
     pub async fn transfer_from_primary(&self, amount: u64, address: String) -> Result<Transfer> {
-        let dest = vec![Destination {
-            account_index: ACCOUNT_INDEX_PRIMARY,
-            amount,
-            address,
-        }];
-        self.multi_transfer(dest).await
+        let dest = vec![Destination { amount, address }];
+        self.multi_transfer(ACCOUNT_INDEX_PRIMARY, dest).await
     }
 
     /// Transfers moneroj from Alice's account.
     pub async fn transfer_from_alice(&self, amount: u64, address: String) -> Result<Transfer> {
-        let dest = vec![Destination {
-            account_index: ACCOUNT_INDEX_ALICE,
-            amount,
-            address,
-        }];
-        self.multi_transfer(dest).await
+        let dest = vec![Destination { amount, address }];
+        self.multi_transfer(ACCOUNT_INDEX_ALICE, dest).await
     }
 
     /// Transfers moneroj from Bob's account.
     pub async fn transfer_from_bob(&self, amount: u64, address: String) -> Result<Transfer> {
-        let dest = vec![Destination {
-            account_index: ACCOUNT_INDEX_BOB,
-            amount,
-            address,
-        }];
-        self.multi_transfer(dest).await
+        let dest = vec![Destination { amount, address }];
+        self.multi_transfer(ACCOUNT_INDEX_BOB, dest).await
     }
 
     /// Transfers moneroj to multiple destinations.
-    async fn multi_transfer(&self, destinations: Vec<Destination>) -> Result<Transfer> {
-        let params = TransferParams { destinations };
+    async fn multi_transfer(
+        &self,
+        account_index: u32,
+        destinations: Vec<Destination>,
+    ) -> Result<Transfer> {
+        let params = TransferParams {
+            account_index,
+            destinations,
+        };
         let request = Request::new("transfer", params);
 
         let response = self
@@ -256,12 +263,32 @@ impl Client {
         let r: Response<Transfer> = serde_json::from_str(&response)?;
         Ok(r.result)
     }
+
+    /// Get wallet block height, this might be behind monerod height
+    pub(crate) async fn block_height(&self) -> Result<BlockHeight> {
+        let request = Request::new("get_height", "");
+
+        let response = self
+            .inner
+            .post(self.url.clone())
+            .json(&request)
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        debug!("wallet height RPC response: {}", response);
+
+        let r: Response<BlockHeight> = serde_json::from_str(&response)?;
+        Ok(r.result)
+    }
 }
 
 #[derive(Serialize, Debug, Clone)]
 struct GetAddressParams {
     account_index: u32,
 }
+
 #[derive(Deserialize, Debug, Clone)]
 pub struct GetAddressResponse {
     pub address: String,
@@ -322,12 +349,12 @@ struct CreateWalletParams {
 
 #[derive(Serialize, Debug, Clone)]
 struct TransferParams {
+    account_index: u32,
     destinations: Vec<Destination>,
 }
 
 #[derive(Serialize, Debug, Clone)]
 pub struct Destination {
-    account_index: u32,
     amount: u64,
     address: String,
 }
@@ -342,4 +369,9 @@ pub struct Transfer {
     tx_key: String,
     tx_metadata: String,
     unsigned_txset: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct BlockHeight {
+    pub height: u32,
 }
