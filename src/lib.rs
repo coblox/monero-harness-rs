@@ -121,38 +121,4 @@ mod tests {
     fn can_create_a_client() {
         let _ = Client::default();
     }
-
-    #[test]
-    fn start_monerod_container() {
-        let docker = clients::Cli::default();
-
-        let image = images::generic::GenericImage::new("xmrto/monero")
-            .with_entrypoint("")
-            .with_args(vec![
-                "/bin/bash  -c \" ".to_string(),
-                "monerod".to_string(),
-                "--confirm-external-bind".to_string(),
-                "--non-interactive".to_string(),
-                "--regtest".to_string(),
-                "--rpc-bind-ip 0.0.0.0".to_string(),
-                "--rpc-bind-port 28081".to_string(),
-                "--no-igd".to_string(),
-                "--hide-my-port".to_string(),
-                "--fixed-difficulty 1".to_string(),
-                "--rpc-login username:password".to_string(),
-                "--data-dir /monero --detach".to_string(),
-                "\" ".to_string(),
-            ]);
-        docker.run(image);
-        // "&&",
-        // "monero-wallet-rpc" ,
-        // "--log-level 4" \
-        // --daemon-address localhost:28081 \
-        // --confirm-external-bind \
-        // --rpc-login username:password \
-        // --rpc-bind-ip 0.0.0.0 \
-        // --rpc-bind-port 28083 \
-        // --daemon-login username:password \
-        // --wallet-dir /monero/""
-    }
 }
