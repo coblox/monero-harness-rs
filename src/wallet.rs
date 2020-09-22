@@ -84,8 +84,6 @@ impl Client {
     }
 
     // $ curl http://localhost:18082/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"create_wallet","params":{"filename":"mytestwallet","password":"mytestpassword","language":"English"}}' -H 'Content-Type: application/json'
-    // You need to have set the argument "–wallet-dir" when launching
-    // monero-wallet-rpc to make this work.
     pub async fn create_wallet(&self, filename: &str) -> Result<()> {
         let params = CreateWalletParams {
             filename: filename.to_owned(),

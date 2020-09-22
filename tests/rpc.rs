@@ -17,7 +17,7 @@ async fn connect_to_monerod() {
 }
 
 #[tokio::test]
-async fn create_wallet_and_get_zero_balance() {
+async fn wallet_and_accounts() {
     let docker = clients::Cli::default();
     let cli = Client::new_with_random_local_ports(&docker);
 
@@ -43,6 +43,12 @@ async fn create_account_and_retrieve_it() {
     let cli = Client::new_with_random_local_ports(&docker);
 
     let label = "alice";
+
+    let _ = cli
+        .wallet
+        .create_wallet("wallet")
+        .await
+        .expect("failed to create wallet");
 
     let _ = cli
         .wallet
