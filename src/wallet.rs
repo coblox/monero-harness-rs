@@ -4,6 +4,12 @@ use anyhow::Result;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 
+#[cfg(not(test))]
+use tracing::debug;
+
+#[cfg(test)]
+use std::println as debug;
+
 /// JSON RPC client for monero-wallet-rpc.
 #[derive(Debug)]
 pub struct Client {
@@ -84,6 +90,8 @@ impl Client {
             .text()
             .await?;
 
+        debug!("create account response: {}", response);
+
         let r: Response<CreateAccount> = serde_json::from_str(&response)?;
         Ok(r.result)
     }
@@ -106,6 +114,9 @@ impl Client {
             .await?;
 
         let r: Response<GetAccounts> = serde_json::from_str(&response)?;
+
+        debug!("create account response: {}", r);
+
         Ok(r.result)
     }
 
@@ -117,7 +128,7 @@ impl Client {
         };
         let request = Request::new("create_wallet", params);
 
-        let _ = self
+        let r = self
             .inner
             .post(self.url.clone())
             .json(&request)
@@ -125,6 +136,8 @@ impl Client {
             .await?
             .text()
             .await?;
+
+        debug!("create account response: {}", r);
 
         Ok(())
     }
