@@ -1,19 +1,13 @@
 use crate::{Request, Response};
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 
-// #[cfg(not(test))]
-// use tracing::debug;
-
-// #[cfg(test)]
+// TODO: Either use println! directly or import tracing also?
 use std::println as debug;
-use std::time::Duration;
 
 // TODO: Consider using bignum for moneroj instead of u64?
-
-const INITIAL_FUNDS_ALICE: u64 = 1000;
 
 const ACCOUNT_INDEX_PRIMARY: u32 = 0;
 const ACCOUNT_INDEX_ALICE: u32 = 1;
@@ -36,43 +30,6 @@ impl Client {
             inner: reqwest::Client::new(),
             url,
         })
-    }
-
-    /// Create accounts Alice and Bob, do initial funding from the primary
-    /// account.
-    pub async fn init_accounts(&self) -> Result<()> {
-        // Wait for wallet to catch up
-
-        while self.block_height().await?.height < 50 {
-            // TODO: Should check that wallet indexed amout of blocks mined earlier
-            tokio::time::delay_for(Duration::from_secs(1)).await;
-        }
-
-        let block_height = self.block_height().await?;
-        debug!("Current block height: {}", block_height.height);
-        let balance = self.get_balance_primary().await?;
-        if balance < INITIAL_FUNDS_ALICE {
-            return Err(anyhow!(
-                "insufficient funds {}, consider initialising with more blocks",
-                balance,
-            ));
-        }
-
-        // moved one level up
-        // let alice = self.create_account("alice").await?;
-        // let bob = self.create_account("bob").await?;
-
-        // debug_assert!(alice.account_index == ACCOUNT_INDEX_ALICE);
-        // debug_assert!(bob.account_index == ACCOUNT_INDEX_BOB);
-
-        let block_height = self.block_height().await?;
-        debug!("Current blockheight: {}", block_height.height);
-        let balance_alice = self.get_balance_alice().await?;
-        debug!("Current balance_alice: {}", balance_alice);
-        // self.transfer_from_primary(INITIAL_FUNDS_ALICE, alice.address)
-        //     .await?;
-
-        Ok(())
     }
 
     /// Get addresses for the primary account.
