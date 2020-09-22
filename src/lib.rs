@@ -15,7 +15,7 @@
 //! Provides a JSON RPC client for monerod and monero-wallet-rpc
 
 mod monerod;
-mod wallet;
+pub mod wallet;
 
 use anyhow::Result;
 use rand::Rng;
