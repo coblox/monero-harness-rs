@@ -17,10 +17,15 @@
 mod monerod;
 mod wallet;
 
+use rand::Rng;
 use serde::{Deserialize, Serialize};
-use testcontainers::core::Port;
-use testcontainers::images::generic::{GenericImage, Stream, WaitFor};
-use testcontainers::{clients, images, Container, Docker, Image};
+use testcontainers::{
+    clients,
+    core::Port,
+    images,
+    images::generic::{GenericImage, Stream, WaitFor},
+    Container, Docker, Image,
+};
 
 /// RPC client for monerod and monero-wallet-rpc.
 #[derive(Debug)]
@@ -62,25 +67,33 @@ impl<'c> Client<'c> {
                 .expect("failed to create monerod client"),
         }
     }
+
+    pub fn new_with_random_local_ports(cli: &'c clients::Cli) -> Self {
+        let mut rng = rand::thread_rng();
+        let monerod_port: u16 = rng.gen_range(1024, u16::MAX);
+        let wallet_port: u16 = rng.gen_range(1024, u16::MAX);
+
+        Client::new(cli, monerod_port, wallet_port)
+    }
 }
 
 // We should be able to use monero-rs for this but it does not include all
 // the fields.
 #[derive(Clone, Debug, Deserialize)]
 pub struct BlockHeader {
-    block_size: u32,
-    depth: u32,
-    difficulty: u32,
-    hash: String,
-    height: u32,
-    major_version: u32,
-    minor_version: u32,
-    nonce: u32,
-    num_txes: u32,
-    orphan_status: bool,
-    prev_hash: String,
-    reward: u64,
-    timestamp: u32,
+    pub block_size: u32,
+    pub depth: u32,
+    pub difficulty: u32,
+    pub hash: String,
+    pub height: u32,
+    pub major_version: u32,
+    pub minor_version: u32,
+    pub nonce: u32,
+    pub num_txes: u32,
+    pub orphan_status: bool,
+    pub prev_hash: String,
+    pub reward: u64,
+    pub timestamp: u32,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -119,7 +132,6 @@ struct Response<T> {
 mod tests {
     use super::*;
     use spectral::prelude::*;
-    use testcontainers::{self, clients};
 
     #[derive(Serialize, Debug, Clone)]
     struct Params {
@@ -139,19 +151,5 @@ mod tests {
             "{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"method\":\"get_block\",\"params\":{\"val\":0}}"
                 .to_string();
         assert_that!(got).is_equal_to(want);
-    }
-
-    #[tokio::test]
-    async fn can_get_genesis_block_header() {
-        let docker_client = clients::Cli::default();
-        let client = Client::new(&docker_client, 28081, 28083);
-
-        let block_header = client
-            .monerod
-            .get_block_header_by_height(0)
-            .await
-            .expect("failed to get block 0");
-
-        assert_eq!(0, block_header.height);
     }
 }

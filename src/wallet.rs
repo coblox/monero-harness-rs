@@ -138,77 +138,23 @@ struct TagParams {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct GetAccounts {
-    subaddress_accounts: Vec<SubAddressAccount>,
-    total_balance: u64,
-    total_unlocked_balance: u64,
+    pub subaddress_accounts: Vec<SubAddressAccount>,
+    pub total_balance: u64,
+    pub total_unlocked_balance: u64,
 }
 
 #[derive(Deserialize, Debug, Clone)]
-struct SubAddressAccount {
-    account_index: u32,
-    balance: u32,
-    base_address: String,
-    label: String,
-    tag: String,
-    unlocked_balance: u64,
+pub struct SubAddressAccount {
+    pub account_index: u32,
+    pub balance: u32,
+    pub base_address: String,
+    pub label: String,
+    pub tag: String,
+    pub unlocked_balance: u64,
 }
 
 #[derive(Serialize, Debug, Clone)]
 struct CreateWalletParams {
     filename: String,
     language: String,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use spectral::prelude::*;
-    use std::fs;
-
-    // Must use monero-wallet-rpc --wallet-dir WALLET_DIR
-    const WALLET_DIR: &str = "/monero/";
-    // Must use monero-wallet-rpc --rpc-bind-port PORT
-    const PORT: u16 = 28083;
-
-    fn cli() -> Client {
-        Client::localhost(PORT).unwrap()
-    }
-
-    #[tokio::test]
-    #[ignore]
-    async fn wallet() {
-        let cli = cli();
-        let filename = "twallet";
-
-        let _ = cli
-            .create_wallet(filename)
-            .await
-            .expect("failed to create balance");
-
-        // Test we can get the balance.
-        let got = cli.get_balance().await.expect("failed to get balance");
-        let want = 0;
-        assert_that!(got).is_equal_to(want);
-
-        // Test we can create an account and retrieve it.
-        let label = "alice";
-
-        let _ = cli
-            .create_account(label)
-            .await
-            .expect("failed to create account");
-
-        let mut found: bool = false;
-        let accounts = cli.get_accounts("").await.expect("failed to get accounts");
-        for account in accounts.subaddress_accounts {
-            if account.label == label {
-                found = true;
-            }
-        }
-        assert!(found);
-
-        // Make an effort to clean up
-        let path = format!("{}/{}", WALLET_DIR, filename);
-        let _ = fs::remove_file(path);
-    }
 }
