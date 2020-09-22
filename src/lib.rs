@@ -36,7 +36,7 @@ const BLOCK_TIME_SECS: u32 = 1;
 /// Poll interval when checking if the wallet has synced with monerod.
 const BLOCK_TIME_SECS: u32 = 200;
 
-/// RPC client for monerod and monero-wallet-rpc.
+/// RPC client for `monerod` and `monero-wallet-rpc`.
 #[derive(Debug)]
 pub struct Client<'c> {
     container: Container<'c, clients::Cli, GenericImage>,
@@ -77,6 +77,8 @@ impl<'c> Client<'c> {
         }
     }
 
+    /// Constructor that generates random port numbers for the local port
+    /// mapping of `monerod` and `monero-wallet-rpc`.
     pub fn new_with_random_local_ports(cli: &'c clients::Cli) -> Self {
         let mut rng = rand::thread_rng();
         let monerod_port: u16 = rng.gen_range(1024, u16::MAX);
@@ -135,6 +137,7 @@ impl<'c> Client<'c> {
     }
 }
 
+/// Mine a block ever BLOCK_TIME_SECS seconds.
 async fn mine(monerod: monerod::Client, reward_address: String) -> Result<()> {
     loop {
         tokio::time::delay_for(Duration::from_secs(BLOCK_TIME_SECS)).await;
