@@ -29,6 +29,12 @@ use testcontainers::{
     Container, Docker, Image,
 };
 
+// #[cfg(not(test))]
+// use tracing::debug;
+
+// #[cfg(test)]
+use std::println as debug;
+
 /// RPC client for monerod and monero-wallet-rpc.
 #[derive(Debug)]
 pub struct Client<'c> {
@@ -87,7 +93,9 @@ impl<'c> Client<'c> {
         self.monerod
             .generate_blocks(blocks, miner_address.clone())
             .await?;
-        let _ = tokio::spawn(mine(self.monerod.clone(), miner_address.clone()));
+
+        // TODO: disabled for now
+        // let _ = tokio::spawn(mine(self.monerod.clone(), miner_address.clone()));
 
         Ok(())
     }
@@ -95,14 +103,39 @@ impl<'c> Client<'c> {
     // TODO: This is separate from init() in order to debug, consider merging the
     // two methods onec its all functional and tested.
     pub async fn init_with_accounts(&self) -> Result<()> {
-        let _ = self.init(60).await?;
-        tokio::time::delay_for(Duration::from_secs(1)).await;
+        // creating wallets first should speed wallet sync-time up
+        self.wallet.create_wallet("miner_wallet").await?;
+        let alice = self.wallet.create_account("alice").await?;
+        let _bob = self.wallet.create_account("bob").await?;
 
-        let miner = self.wallet.get_address_primary().await?.address;
+        let miner_address = self.wallet.get_address_primary().await?.address;
+        let generate_blocks_result = self
+            .monerod
+            .generate_blocks(70, miner_address.clone())
+            .await?;
 
-        self.monerod.generate_blocks(20, miner).await?;
+        // wait until wallet has caught up
         tokio::time::delay_for(Duration::from_secs(1)).await;
-        self.wallet.init_accounts().await?;
+        while self.wallet.block_height().await?.height < generate_blocks_result.height {
+            tokio::time::delay_for(Duration::from_secs(2)).await;
+        }
+
+        debug!("Initializing accounts");
+        self.wallet
+            .transfer_from_primary(1000, alice.address)
+            .await?;
+
+        let blocks_result = self
+            .monerod
+            .generate_blocks(2, miner_address.clone())
+            .await?;
+
+        tokio::time::delay_for(Duration::from_secs(1)).await;
+        while self.wallet.block_height().await?.height < blocks_result.height {
+            tokio::time::delay_for(Duration::from_secs(2)).await;
+        }
+        let balance_alice = self.wallet.get_balance_alice().await?;
+        debug!("Current balance_alice after funding: {}", balance_alice);
 
         Ok(())
     }
