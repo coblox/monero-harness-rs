@@ -59,28 +59,12 @@ struct GetBlockHeaderByHeight {
 mod tests {
     use super::*;
     use std::time::Duration;
+    use testcontainers::images::generic::{Stream, WaitFor};
     use testcontainers::{clients, core::Port, images, Docker, Image};
 
     #[tokio::test]
     async fn can_get_genesis_block_header() {
         let docker = clients::Cli::default();
-
-        // let monerod = "monerod --confirm-external-bind --non-interactive --regtest
-        // --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28081 --no-igd --hide-my-port
-        // --fixed-difficulty 1 --rpc-payment-allow-free-loopback --data-dir /monero
-        // --detach";
-
-        // let wallet = r#"monero-wallet-rpc \
-        // 	--log-level 4 \
-        // 	--daemon-address localhost:28081 \
-        // 	--confirm-external-bind \
-        // 	--disable-rpc-login \
-        // 	--rpc-bind-ip 0.0.0.0 \
-        // 	--rpc-bind-port 28083 \
-        // 	--daemon-login username:password \
-        // 	--wallet-dir /monero/"#;
-
-        //        let shell = format!("{} && {}", monerod, wallet);
 
         let image = images::generic::GenericImage::new("xmrto/monero")
             .with_mapped_port(Port {
@@ -95,12 +79,11 @@ mod tests {
             .with_args(vec![
                 "/bin/bash".to_string(),
                 "-c".to_string(),
-                "monerod --confirm-external-bind --non-interactive --regtest --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28081 --no-igd --hide-my-port --fixed-difficulty 1 --rpc-payment-allow-free-loopback --data-dir /monero --detach && \
+                "monerod --confirm-external-bind --non-interactive --regtest --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28081 --no-igd --hide-my-port --fixed-difficulty 1 --rpc-payment-allow-free-loopback --data-dir /monero & \
                 monero-wallet-rpc --log-level 4 --daemon-address localhost:28081 --confirm-external-bind --rpc-login username:password --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28083 --daemon-login username:password --wallet-dir /monero/".to_string(),
-            ]);
+            ])
+            .with_wait_for(WaitFor::LogMessage { message: "You are now synchronized with the network. You may now start monero-wallet-cli".to_string(), stream: Stream::StdOut });
         let node = docker.run(image);
-
-        tokio::time::delay_for(Duration::from_secs(60)).await;
 
         let cli = Client::localhost(28081).unwrap();
         let value = cli
