@@ -23,6 +23,32 @@ impl Client {
         })
     }
 
+    // $ curl -X POST http://127.0.0.1:28083/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"get_address","params":{"account_index":0,"address_index":[0]}}' -H 'Content-Type: application/json'
+    /// Get addresses for account and index
+    pub async fn get_address(
+        &self,
+        account_index: u32,
+        address_index: u32,
+    ) -> Result<GetAddressResponse> {
+        let params = GetAddressParams {
+            account_index,
+            address_indices: vec![address_index],
+        };
+        let request = Request::new("get_address", params);
+
+        let response = self
+            .inner
+            .post(self.url.clone())
+            .json(&request)
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        let r: Response<GetAddressResponse> = serde_json::from_str(&response)?;
+        Ok(r.result)
+    }
+
     // curl http://127.0.0.1:2021/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"get_balance","params":{"account_index":0}}' -H 'Content-Type: application/json'
     pub async fn get_balance(&self) -> Result<u64> {
         let params = GetBalanceParams { account_index: 0 };
@@ -102,6 +128,16 @@ impl Client {
 
         Ok(())
     }
+}
+
+#[derive(Serialize, Debug, Clone)]
+struct GetAddressParams {
+    account_index: u32,
+    address_indices: Vec<u32>,
+}
+#[derive(Deserialize, Debug, Clone)]
+pub struct GetAddressResponse {
+    pub address: String,
 }
 
 #[derive(Serialize, Debug, Clone)]

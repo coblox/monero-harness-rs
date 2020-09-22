@@ -17,6 +17,22 @@ async fn connect_to_monerod() {
 }
 
 #[tokio::test]
+async fn miner_is_running_and_producing_blocks() {
+    let docker_client = clients::Cli::default();
+    let client = Client::new_with_random_local_ports(&docker_client);
+    client.init(2).await.expect("Failed to initialize");
+
+    // we should have at least 5 blocks by now
+    let block_header = client
+        .monerod
+        .get_block_header_by_height(2)
+        .await
+        .expect("failed to get block");
+
+    assert_eq!(2, block_header.height);
+}
+
+#[tokio::test]
 async fn wallet_and_accounts() {
     let docker = clients::Cli::default();
     let cli = Client::new_with_random_local_ports(&docker);

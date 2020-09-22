@@ -5,7 +5,7 @@ use reqwest::Url;
 use serde::{Deserialize, Serialize};
 
 /// RPC client for monerod and monero-wallet-rpc.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Client {
     pub inner: reqwest::Client,
     pub url: Url,
@@ -21,6 +21,32 @@ impl Client {
             inner: reqwest::Client::new(),
             url,
         })
+    }
+
+    pub async fn generate_blocks(
+        &self,
+        amount_of_blocks: u32,
+        wallet_address: String,
+    ) -> Result<GenerateBlocksResult> {
+        let params = GenerateBlocksParams {
+            amount_of_blocks,
+            wallet_address,
+        };
+        let request = Request::new("generateblocks", params);
+
+        let response = self
+            .inner
+            .post(self.url.clone())
+            .json(&request)
+            .send()
+            .await?
+            .text()
+            .await?;
+        println!("{}", response);
+
+        let res: Response<GenerateBlocksResult> = serde_json::from_str(&response)?;
+
+        Ok(res.result)
     }
 
     // $ curl http://127.0.0.1:18081/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"get_block_header_by_height","params":{"height":1}}' -H 'Content-Type: application/json'
@@ -41,6 +67,19 @@ impl Client {
 
         Ok(res.result.block_header)
     }
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct GenerateBlocksParams {
+    amount_of_blocks: u32,
+    wallet_address: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct GenerateBlocksResult {
+    blocks: Vec<String>,
+    height: u32,
+    status: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
