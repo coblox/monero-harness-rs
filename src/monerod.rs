@@ -65,23 +65,6 @@ mod tests {
     async fn can_get_genesis_block_header() {
         let docker = clients::Cli::default();
 
-        // let monerod = "monerod --confirm-external-bind --non-interactive --regtest
-        // --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28081 --no-igd --hide-my-port
-        // --fixed-difficulty 1 --rpc-payment-allow-free-loopback --data-dir /monero
-        // --detach";
-
-        // let wallet = r#"monero-wallet-rpc \
-        // 	--log-level 4 \
-        // 	--daemon-address localhost:28081 \
-        // 	--confirm-external-bind \
-        // 	--disable-rpc-login \
-        // 	--rpc-bind-ip 0.0.0.0 \
-        // 	--rpc-bind-port 28083 \
-        // 	--daemon-login username:password \
-        // 	--wallet-dir /monero/"#;
-
-        //        let shell = format!("{} && {}", monerod, wallet);
-
         let image = images::generic::GenericImage::new("xmrto/monero")
             .with_mapped_port(Port {
                 local: 28081,
