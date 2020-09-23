@@ -7,10 +7,6 @@ use serde::{Deserialize, Serialize};
 // TODO: Either use println! directly or import tracing also?
 use std::println as debug;
 
-const ACCOUNT_INDEX_PRIMARY: u32 = 0;
-const ACCOUNT_INDEX_ALICE: u32 = 1;
-const ACCOUNT_INDEX_BOB: u32 = 2;
-
 /// JSON RPC client for monero-wallet-rpc.
 #[derive(Debug)]
 pub struct Client {
@@ -19,34 +15,24 @@ pub struct Client {
 }
 
 impl Client {
-    /// New local host monero-wallet-rpc client.
+    /// Constructs a monero-wallet-rpc client with localhost endpoint.
     pub fn localhost(port: u16) -> Self {
         let url = format!("http://127.0.0.1:{}/json_rpc", port);
         let url = Url::parse(&url).expect("url is well formed");
 
+        Client::new(url)
+    }
+
+    /// Constructs a monero-wallet-rpc client with `url` endpoint.
+    pub fn new(url: Url) -> Self {
         Self {
             inner: reqwest::Client::new(),
             url,
         }
     }
 
-    /// Get addresses for the primary account.
-    pub async fn get_address_primary(&self) -> Result<GetAddress> {
-        self.get_address(ACCOUNT_INDEX_PRIMARY).await
-    }
-
-    /// Get addresses for the Alice's account.
-    pub async fn get_address_alice(&self) -> Result<GetAddress> {
-        self.get_address(ACCOUNT_INDEX_ALICE).await
-    }
-
-    /// Get addresses for the Bob's account.
-    pub async fn get_address_bob(&self) -> Result<GetAddress> {
-        self.get_address(ACCOUNT_INDEX_BOB).await
-    }
-
     /// Get addresses for account by index.
-    async fn get_address(&self, account_index: u32) -> Result<GetAddress> {
+    pub async fn get_address(&self, account_index: u32) -> Result<GetAddress> {
         let params = GetAddressParams { account_index };
         let request = Request::new("get_address", params);
 
@@ -65,23 +51,8 @@ impl Client {
         Ok(r.result)
     }
 
-    /// Gets the balance of the wallet primary account.
-    pub async fn get_balance_primary(&self) -> Result<u64> {
-        self.get_balance(ACCOUNT_INDEX_PRIMARY).await
-    }
-
-    /// Gets the balance of Alice's account.
-    pub async fn get_balance_alice(&self) -> Result<u64> {
-        self.get_balance(ACCOUNT_INDEX_ALICE).await
-    }
-
-    /// Gets the balance of Bob's account.
-    pub async fn get_balance_bob(&self) -> Result<u64> {
-        self.get_balance(ACCOUNT_INDEX_BOB).await
-    }
-
     /// Gets the balance of account by index.
-    async fn get_balance(&self, index: u32) -> Result<u64> {
+    pub async fn get_balance(&self, index: u32) -> Result<u64> {
         let params = GetBalanceParams {
             account_index: index,
         };
@@ -174,35 +145,22 @@ impl Client {
         Ok(())
     }
 
-    /// Transfers moneroj from the primary account.
-    pub async fn transfer_from_primary(&self, amount: u64, address: &str) -> Result<Transfer> {
+    /// Transfers `amount` moneroj from `account_index` to `address`.
+    pub async fn transfer(
+        &self,
+        account_index: u32,
+        amount: u64,
+        address: &str,
+    ) -> Result<Transfer> {
         let dest = vec![Destination {
             amount,
             address: address.to_owned(),
         }];
-        self.multi_transfer(ACCOUNT_INDEX_PRIMARY, dest).await
+        self.multi_transfer(account_index, dest).await
     }
 
-    /// Transfers moneroj from Alice's account.
-    pub async fn transfer_from_alice(&self, amount: u64, address: &str) -> Result<Transfer> {
-        let dest = vec![Destination {
-            amount,
-            address: address.to_owned(),
-        }];
-        self.multi_transfer(ACCOUNT_INDEX_ALICE, dest).await
-    }
-
-    /// Transfers moneroj from Bob's account.
-    pub async fn transfer_from_bob(&self, amount: u64, address: &str) -> Result<Transfer> {
-        let dest = vec![Destination {
-            amount,
-            address: address.to_owned(),
-        }];
-        self.multi_transfer(ACCOUNT_INDEX_BOB, dest).await
-    }
-
-    /// Transfers moneroj to multiple destinations.
-    async fn multi_transfer(
+    /// Transfers moneroj from `account_index` to `destinations`.
+    pub async fn multi_transfer(
         &self,
         account_index: u32,
         destinations: Vec<Destination>,

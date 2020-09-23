@@ -28,11 +28,18 @@ use testcontainers::{
     Docker, Image,
 };
 
+use crate::wallet::{GetAddress, Transfer};
+
 /// How often we mine a block.
 const BLOCK_TIME_SECS: u64 = 1;
 
 /// Poll interval when checking if the wallet has synced with monerod.
 const WAIT_WALLET_SYNC_MILLIS: u64 = 1000;
+
+/// Wallet sub-account indecies.
+const ACCOUNT_INDEX_PRIMARY: u32 = 0;
+const ACCOUNT_INDEX_ALICE: u32 = 1;
+const ACCOUNT_INDEX_BOB: u32 = 2;
 
 /// A docker container with a `monerod` instance and a `monero-wallet-rpc`
 /// instance.
@@ -107,7 +114,7 @@ impl Client {
         let alice = self.wallet.create_account("alice").await?;
         let bob = self.wallet.create_account("bob").await?;
 
-        let miner = self.wallet.get_address_primary().await?.address;
+        let miner = self.get_address_primary().await?.address;
 
         let res = self.monerod.generate_blocks(70, &miner).await?;
         self.wait_for_wallet_block_height(res.height).await?;
@@ -115,13 +122,13 @@ impl Client {
         if alice_funding > 0 {
             self.fund_account(&alice.address, &miner, alice_funding)
                 .await?;
-            let balance = self.wallet.get_balance_alice().await?;
+            let balance = self.get_balance_alice().await?;
             debug_assert!(balance == alice_funding);
         }
 
         if bob_funding > 0 {
             self.fund_account(&bob.address, &miner, bob_funding).await?;
-            let balance = self.wallet.get_balance_bob().await?;
+            let balance = self.get_balance_bob().await?;
             debug_assert!(balance == bob_funding);
         }
 
@@ -133,7 +140,7 @@ impl Client {
     /// Just create a wallet and start mining (you probably want `init()`).
     pub async fn init_just_miner(&self, blocks: u32) -> Result<()> {
         self.wallet.create_wallet("miner_wallet").await?;
-        let miner = self.wallet.get_address_primary().await?.address;
+        let miner = self.get_address_primary().await?.address;
 
         let _ = self.monerod.generate_blocks(blocks, &miner).await?;
 
@@ -143,7 +150,7 @@ impl Client {
     }
 
     async fn fund_account(&self, address: &str, miner: &str, funding: u64) -> Result<()> {
-        self.wallet.transfer_from_primary(funding, address).await?;
+        self.transfer_from_primary(funding, address).await?;
         let res = self.monerod.generate_blocks(10, miner).await?;
         self.wait_for_wallet_block_height(res.height).await?;
         Ok(())
@@ -155,6 +162,57 @@ impl Client {
             tokio::time::delay_for(Duration::from_millis(WAIT_WALLET_SYNC_MILLIS)).await;
         }
         Ok(())
+    }
+
+    /// Get addresses for the primary account.
+    pub async fn get_address_primary(&self) -> Result<GetAddress> {
+        self.wallet.get_address(ACCOUNT_INDEX_PRIMARY).await
+    }
+
+    /// Get addresses for the Alice's account.
+    pub async fn get_address_alice(&self) -> Result<GetAddress> {
+        self.wallet.get_address(ACCOUNT_INDEX_ALICE).await
+    }
+
+    /// Get addresses for the Bob's account.
+    pub async fn get_address_bob(&self) -> Result<GetAddress> {
+        self.wallet.get_address(ACCOUNT_INDEX_BOB).await
+    }
+
+    /// Gets the balance of the wallet primary account.
+    pub async fn get_balance_primary(&self) -> Result<u64> {
+        self.wallet.get_balance(ACCOUNT_INDEX_PRIMARY).await
+    }
+
+    /// Gets the balance of Alice's account.
+    pub async fn get_balance_alice(&self) -> Result<u64> {
+        self.wallet.get_balance(ACCOUNT_INDEX_ALICE).await
+    }
+
+    /// Gets the balance of Bob's account.
+    pub async fn get_balance_bob(&self) -> Result<u64> {
+        self.wallet.get_balance(ACCOUNT_INDEX_BOB).await
+    }
+
+    /// Transfers moneroj from the primary account.
+    pub async fn transfer_from_primary(&self, amount: u64, address: &str) -> Result<Transfer> {
+        self.wallet
+            .transfer(ACCOUNT_INDEX_PRIMARY, amount, address)
+            .await
+    }
+
+    /// Transfers moneroj from Alice's account.
+    pub async fn transfer_from_alice(&self, amount: u64, address: &str) -> Result<Transfer> {
+        self.wallet
+            .transfer(ACCOUNT_INDEX_ALICE, amount, address)
+            .await
+    }
+
+    /// Transfers moneroj from Bob's account.
+    pub async fn transfer_from_bob(&self, amount: u64, address: &str) -> Result<Transfer> {
+        self.wallet
+            .transfer(ACCOUNT_INDEX_BOB, amount, address)
+            .await
     }
 }
 
