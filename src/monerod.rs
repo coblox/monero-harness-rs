@@ -4,8 +4,14 @@ use anyhow::Result;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 
+// #[cfg(not(test))]
+// use tracing::debug;
+//
+// #[cfg(test)]
+use std::eprintln as debug;
+
 /// RPC client for monerod and monero-wallet-rpc.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Client {
     pub inner: reqwest::Client,
     pub url: Url,
@@ -23,6 +29,33 @@ impl Client {
         })
     }
 
+    pub async fn generate_blocks(
+        &self,
+        amount_of_blocks: u32,
+        wallet_address: &str,
+    ) -> Result<GenerateBlocks> {
+        let params = GenerateBlocksParams {
+            amount_of_blocks,
+            wallet_address: wallet_address.to_owned(),
+        };
+        let request = Request::new("generateblocks", params);
+
+        let response = self
+            .inner
+            .post(self.url.clone())
+            .json(&request)
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        debug!("generate blocks response: {}", response);
+
+        let res: Response<GenerateBlocks> = serde_json::from_str(&response)?;
+
+        Ok(res.result)
+    }
+
     // $ curl http://127.0.0.1:18081/json_rpc -d '{"jsonrpc":"2.0","id":"0","method":"get_block_header_by_height","params":{"height":1}}' -H 'Content-Type: application/json'
     pub async fn get_block_header_by_height(&self, height: u32) -> Result<BlockHeader> {
         let params = GetBlockHeaderByHeightParams { height };
@@ -37,10 +70,25 @@ impl Client {
             .text()
             .await?;
 
+        debug!("get block header by height response: {}", response);
+
         let res: Response<GetBlockHeaderByHeight> = serde_json::from_str(&response)?;
 
         Ok(res.result.block_header)
     }
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct GenerateBlocksParams {
+    amount_of_blocks: u32,
+    wallet_address: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct GenerateBlocks {
+    pub blocks: Vec<String>,
+    pub height: u32,
+    pub status: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -53,19 +101,4 @@ struct GetBlockHeaderByHeight {
     block_header: BlockHeader,
     status: String,
     untrusted: bool,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn can_get_genesis_block_header() {
-        // TODO: Make this test executable on CI.
-        let cli = Client::localhost(38081).unwrap();
-        let _ = cli
-            .get_block_header_by_height(0)
-            .await
-            .expect("failed to get block 0");
-    }
 }
