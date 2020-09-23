@@ -24,7 +24,6 @@ use std::time::Duration;
 use testcontainers::{
     clients,
     core::Port,
-    images,
     images::generic::{GenericImage, Stream, WaitFor},
     Container, Docker, Image,
 };
@@ -50,24 +49,8 @@ impl<'c> Client<'c> {
         monerod_rpc_port: u16,
         wallet_rpc_port: u16,
     ) -> Self {
-        let image = images::generic::GenericImage::new("xmrto/monero")
-            .with_mapped_port(Port {
-                local: monerod_rpc_port,
-                internal: 28081,
-            })
-            .with_mapped_port(Port {
-                local: wallet_rpc_port,
-                internal: 28083,
-            })
-            .with_entrypoint("")
-            .with_args(vec![
-                "/bin/bash".to_string(),
-                "-c".to_string(),
-                "monerod --confirm-external-bind --non-interactive --regtest --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28081 --no-igd --hide-my-port --fixed-difficulty 1 --rpc-payment-allow-free-loopback --data-dir /monero & \
-                monero-wallet-rpc --log-level 4 --daemon-address localhost:28081 --confirm-external-bind --disable-rpc-login --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28083  --wallet-dir /monero/".to_string(),
-            ])
-            .with_wait_for(WaitFor::LogMessage { message: "You are now synchronized with the network. You may now start monero-wallet-cli".to_string(), stream: Stream::StdOut });
-        let container = docker_client.run(image);
+        let container = spin_up_container(docker_client, monerod_rpc_port, wallet_rpc_port);
+
         Self {
             container,
             wallet: wallet::Client::localhost(wallet_rpc_port)
@@ -155,6 +138,32 @@ impl<'c> Client<'c> {
         }
         Ok(())
     }
+}
+
+pub fn spin_up_container(
+    cli: &'_ clients::Cli,
+    monerod_rpc_port: u16,
+    wallet_rpc_port: u16,
+) -> Container<'_, clients::Cli, GenericImage> {
+    let image = GenericImage::new("xmrto/monero")
+        .with_mapped_port(Port {
+            local: monerod_rpc_port,
+            internal: 28081,
+        })
+        .with_mapped_port(Port {
+            local: wallet_rpc_port,
+            internal: 28083,
+        })
+        .with_entrypoint("")
+        .with_args(vec![
+            "/bin/bash".to_string(),
+            "-c".to_string(),
+            "monerod --confirm-external-bind --non-interactive --regtest --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28081 --no-igd --hide-my-port --fixed-difficulty 1 --rpc-payment-allow-free-loopback --data-dir /monero & \
+             monero-wallet-rpc --log-level 4 --daemon-address localhost:28081 --confirm-external-bind --disable-rpc-login --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28083  --wallet-dir /monero/".to_string(),
+        ])
+        .with_wait_for(WaitFor::LogMessage { message: "You are now synchronized with the network. You may now start monero-wallet-cli".to_string(), stream: Stream::StdOut });
+
+    cli.run(image)
 }
 
 /// Mine a block ever BLOCK_TIME_SECS seconds.
