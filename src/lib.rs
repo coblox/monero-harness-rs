@@ -44,20 +44,12 @@ pub struct Client<'c> {
 impl<'c> Client<'c> {
     /// Constructor that generates random port numbers for the local port
     /// mapping of `monerod` and `monero-wallet-rpc`.
-    pub fn new_with_random_local_ports(cli: &'c clients::Cli) -> Self {
+    pub fn new(cli: &'c clients::Cli) -> Self {
         let mut rng = rand::thread_rng();
-        let monerod_port: u16 = rng.gen_range(1024, u16::MAX);
-        let wallet_port: u16 = rng.gen_range(1024, u16::MAX);
+        let monerod_rpc_port: u16 = rng.gen_range(1024, u16::MAX);
+        let wallet_rpc_port: u16 = rng.gen_range(1024, u16::MAX);
 
-        Client::new(cli, monerod_port, wallet_port)
-    }
-
-    pub fn new(
-        docker_client: &'c clients::Cli,
-        monerod_rpc_port: u16,
-        wallet_rpc_port: u16,
-    ) -> Self {
-        let container = spin_up_container(docker_client, monerod_rpc_port, wallet_rpc_port);
+        let container = spin_up_container(cli, monerod_rpc_port, wallet_rpc_port);
 
         Self {
             container,
