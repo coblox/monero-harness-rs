@@ -7,8 +7,6 @@ use serde::{Deserialize, Serialize};
 // TODO: Either use println! directly or import tracing also?
 use std::println as debug;
 
-// TODO: Consider using bignum for moneroj instead of u64?
-
 const ACCOUNT_INDEX_PRIMARY: u32 = 0;
 const ACCOUNT_INDEX_ALICE: u32 = 1;
 const ACCOUNT_INDEX_BOB: u32 = 2;
