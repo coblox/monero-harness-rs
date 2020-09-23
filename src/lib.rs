@@ -44,6 +44,16 @@ pub struct Client<'c> {
 }
 
 impl<'c> Client<'c> {
+    /// Constructor that generates random port numbers for the local port
+    /// mapping of `monerod` and `monero-wallet-rpc`.
+    pub fn new_with_random_local_ports(cli: &'c clients::Cli) -> Self {
+        let mut rng = rand::thread_rng();
+        let monerod_port: u16 = rng.gen_range(1024, u16::MAX);
+        let wallet_port: u16 = rng.gen_range(1024, u16::MAX);
+
+        Client::new(cli, monerod_port, wallet_port)
+    }
+
     pub fn new(
         docker_client: &'c clients::Cli,
         monerod_rpc_port: u16,
@@ -58,16 +68,6 @@ impl<'c> Client<'c> {
             monerod: monerod::Client::localhost(monerod_rpc_port)
                 .expect("failed to create monerod client"),
         }
-    }
-
-    /// Constructor that generates random port numbers for the local port
-    /// mapping of `monerod` and `monero-wallet-rpc`.
-    pub fn new_with_random_local_ports(cli: &'c clients::Cli) -> Self {
-        let mut rng = rand::thread_rng();
-        let monerod_port: u16 = rng.gen_range(1024, u16::MAX);
-        let wallet_port: u16 = rng.gen_range(1024, u16::MAX);
-
-        Client::new(cli, monerod_port, wallet_port)
     }
 
     /// Initialise by creating a wallet, generating some `blocks`, and starting
