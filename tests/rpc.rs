@@ -98,9 +98,9 @@ async fn init_accounts_for_alice_and_bob() {
     let cli = Client::new_with_random_local_ports(&docker);
 
     let want_alice_balance = 1000;
-    let want_bob_balance = 500;
+    let want_bob_balance = 0;
 
-    cli.init_with_accounts(want_alice_balance, want_bob_balance)
+    cli.init_with_accounts(Some(want_alice_balance), None)
         .await
         .expect("failed to init");
 

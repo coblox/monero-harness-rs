@@ -29,13 +29,14 @@ use testcontainers::{
     Container, Docker, Image,
 };
 
-// #[cfg(not(test))]
-// use tracing::debug;
+/// When creating an account for Alice fund it with this amount of moneroj.
+const INITIAL_FUNDS_ALICE: u64 = 1000;
+/// How often we mine a block.
+const BLOCK_TIME_SECS: u64 = 1;
+/// Poll interval when checking if the wallet has synced with monerod.
+const WAIT_WALLET_SYNC_MILLIS: u64 = 1000;
 
-// #[cfg(test)]
-use std::println as debug;
-
-/// RPC client for monerod and monero-wallet-rpc.
+/// RPC client for `monerod` and `monero-wallet-rpc`.
 #[derive(Debug)]
 pub struct Client<'c> {
     container: Container<'c, clients::Cli, GenericImage>,
@@ -76,6 +77,8 @@ impl<'c> Client<'c> {
         }
     }
 
+    /// Constructor that generates random port numbers for the local port
+    /// mapping of `monerod` and `monero-wallet-rpc`.
     pub fn new_with_random_local_ports(cli: &'c clients::Cli) -> Self {
         let mut rng = rand::thread_rng();
         let monerod_port: u16 = rng.gen_range(1024, u16::MAX);
@@ -88,75 +91,80 @@ impl<'c> Client<'c> {
     /// a miner thread that mines to the primary account.
     pub async fn init(&self, blocks: u32) -> Result<()> {
         self.wallet.create_wallet("miner_wallet").await?;
-        let miner_address = self.wallet.get_address_primary().await?.address;
+        let miner = self.wallet.get_address_primary().await?.address;
 
-        self.monerod
-            .generate_blocks(blocks, miner_address.clone())
-            .await?;
-        let _ = tokio::spawn(mine(self.monerod.clone(), miner_address.clone()));
+        let _ = self.monerod.generate_blocks(blocks, miner.clone()).await?;
+
+        let _ = tokio::spawn(mine(self.monerod.clone(), miner));
 
         Ok(())
     }
 
-    /// Fund Alice and Bob account. amounts need to be > 0
-    pub async fn init_with_accounts(&self, alice_funding: u64, bob_funding: u64) -> Result<()> {
-        // creating wallet first should speed up wallet sync-time
+    /// Initialise by creating a wallet, generating some `blocks`, and starting
+    /// a miner thread that mines to the primary account. Also create two
+    /// sub-accounts, one for Alice and one for Bob. Alice funding will be INITIAL_FUNDS_ALICE
+    pub async fn init_with_default_accounts(&self) -> Result<()> {
+        self.init_with_accounts(Some(INITIAL_FUNDS_ALICE), None)
+            .await
+    }
+
+    /// Initialise by creating a wallet, generating some `blocks`, and starting
+    /// a miner thread that mines to the primary account. Also create two
+    /// sub-accounts, one for Alice and one for Bob. If alice/bob_funding is some, the value
+    /// needs to be > 0.
+    pub async fn init_with_accounts(
+        &self,
+        alice_funding: Option<u64>,
+        bob_funding: Option<u64>,
+    ) -> Result<()> {
         self.wallet.create_wallet("miner_wallet").await?;
+
         let alice = self.wallet.create_account("alice").await?;
         let bob = self.wallet.create_account("bob").await?;
 
-        let miner_address = self.wallet.get_address_primary().await?.address;
+        let miner = self.wallet.get_address_primary().await?.address;
 
-        // 70 blocks seems to be the sweet number to make it spendable
-        let generate_blocks_result = self
-            .monerod
-            .generate_blocks(70, miner_address.clone())
-            .await?;
+        let res = self.monerod.generate_blocks(70, miner.clone()).await?;
+        self.wait_for_wallet_block_height(res.height).await?;
 
-        // wait until wallet has caught up
-        tokio::time::delay_for(Duration::from_secs(1)).await;
-        while self.wallet.block_height().await?.height < generate_blocks_result.height {
-            tokio::time::delay_for(Duration::from_secs(1)).await;
+        if let Some(alice_funding) = alice_funding {
+            self.fund_account(alice.address, &miner, alice_funding)
+                .await?;
+            let balance = self.wallet.get_balance_alice().await?;
+            debug_assert!(balance == alice_funding);
         }
 
-        debug!("Initializing accounts");
-        self.wallet
-            .transfer_from_primary(alice_funding, alice.address)
-            .await?;
-
-        self.wallet
-            .transfer_from_primary(bob_funding, bob.address)
-            .await?;
-
-        let blocks_result = self
-            .monerod
-            .generate_blocks(2, miner_address.clone())
-            .await?;
-
-        tokio::time::delay_for(Duration::from_secs(1)).await;
-        while self.wallet.block_height().await?.height < blocks_result.height {
-            tokio::time::delay_for(Duration::from_secs(1)).await;
+        if let Some(bob_funding) = bob_funding {
+            self.fund_account(bob.address, &miner, bob_funding).await?;
+            let balance = self.wallet.get_balance_bob().await?;
+            debug_assert!(balance == bob_funding);
         }
 
-        let mut attempts = 3;
+        let _ = tokio::spawn(mine(self.monerod.clone(), miner));
 
-        while (self.wallet.get_balance_alice().await? < alice_funding
-            || self.wallet.get_balance_bob().await? < bob_funding)
-            && attempts > 0
-        {
-            // Wait for the wallet to index transaction
-            debug!("Waiting for wallet to see balance");
-            tokio::time::delay_for(Duration::from_secs(1)).await;
-            attempts -= 1;
+        Ok(())
+    }
+
+    async fn fund_account(&self, address: String, miner: &String, funding: u64) -> Result<()> {
+        self.wallet.transfer_from_primary(funding, address).await?;
+        let res = self.monerod.generate_blocks(10, miner.clone()).await?;
+        self.wait_for_wallet_block_height(res.height).await?;
+        Ok(())
+    }
+
+    // It takes a little while for the wallet to sync with monerod.
+    async fn wait_for_wallet_block_height(&self, height: u32) -> Result<()> {
+        while self.wallet.block_height().await?.height < height {
+            tokio::time::delay_for(Duration::from_millis(WAIT_WALLET_SYNC_MILLIS)).await;
         }
-
         Ok(())
     }
 }
 
+/// Mine a block ever BLOCK_TIME_SECS seconds.
 async fn mine(monerod: monerod::Client, reward_address: String) -> Result<()> {
     loop {
-        tokio::time::delay_for(Duration::from_secs(1)).await;
+        tokio::time::delay_for(Duration::from_secs(BLOCK_TIME_SECS)).await;
         monerod.generate_blocks(1, reward_address.clone()).await?;
     }
 }

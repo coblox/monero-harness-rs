@@ -33,7 +33,7 @@ impl Client {
         &self,
         amount_of_blocks: u32,
         wallet_address: String,
-    ) -> Result<GenerateBlocksResult> {
+    ) -> Result<GenerateBlocks> {
         let params = GenerateBlocksParams {
             amount_of_blocks,
             wallet_address,
@@ -51,7 +51,7 @@ impl Client {
 
         debug!("generate blocks response: {}", response);
 
-        let res: Response<GenerateBlocksResult> = serde_json::from_str(&response)?;
+        let res: Response<GenerateBlocks> = serde_json::from_str(&response)?;
 
         Ok(res.result)
     }
@@ -85,10 +85,10 @@ struct GenerateBlocksParams {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-pub struct GenerateBlocksResult {
-    blocks: Vec<String>,
-    pub(crate) height: u32,
-    status: String,
+pub struct GenerateBlocks {
+    pub blocks: Vec<String>,
+    pub height: u32,
+    pub status: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
