@@ -31,6 +31,9 @@ pub struct Client {
 
 impl Default for Client {
     fn default() -> Self {
+
+        INTENTIONALLY BREAK THE BUILD
+
         Self {
             wallet: wallet::Client::localhost(MONERO_WALLET_RPC_PORT)
                 .expect("failed to create wallet client"),
