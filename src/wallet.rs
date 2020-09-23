@@ -31,22 +31,22 @@ impl Client {
     }
 
     /// Get addresses for the primary account.
-    pub async fn get_address_primary(&self) -> Result<GetAddressResponse> {
+    pub async fn get_address_primary(&self) -> Result<GetAddress> {
         self.get_address(ACCOUNT_INDEX_PRIMARY).await
     }
 
     /// Get addresses for the Alice's account.
-    pub async fn get_address_alice(&self) -> Result<GetAddressResponse> {
+    pub async fn get_address_alice(&self) -> Result<GetAddress> {
         self.get_address(ACCOUNT_INDEX_ALICE).await
     }
 
     /// Get addresses for the Bob's account.
-    pub async fn get_address_bob(&self) -> Result<GetAddressResponse> {
+    pub async fn get_address_bob(&self) -> Result<GetAddress> {
         self.get_address(ACCOUNT_INDEX_BOB).await
     }
 
     /// Get addresses for account by index.
-    async fn get_address(&self, account_index: u32) -> Result<GetAddressResponse> {
+    async fn get_address(&self, account_index: u32) -> Result<GetAddress> {
         let params = GetAddressParams { account_index };
         let request = Request::new("get_address", params);
 
@@ -61,7 +61,7 @@ impl Client {
 
         debug!("get address RPC response: {}", response);
 
-        let r: Response<GetAddressResponse> = serde_json::from_str(&response)?;
+        let r: Response<GetAddress> = serde_json::from_str(&response)?;
         Ok(r.result)
     }
 
@@ -254,7 +254,7 @@ struct GetAddressParams {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-pub struct GetAddressResponse {
+pub struct GetAddress {
     pub address: String,
 }
 
