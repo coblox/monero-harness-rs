@@ -28,8 +28,6 @@ use testcontainers::{
     Container, Docker, Image,
 };
 
-/// When creating an account for Alice fund it with this amount of moneroj.
-const INITIAL_FUNDS_ALICE: u64 = 1000;
 /// How often we mine a block.
 const BLOCK_TIME_SECS: u64 = 1;
 /// Poll interval when checking if the wallet has synced with monerod.
@@ -81,14 +79,6 @@ impl<'c> Client<'c> {
         let _ = tokio::spawn(mine(self.monerod.clone(), miner));
 
         Ok(())
-    }
-
-    /// Initialise by creating a wallet, generating some `blocks`, and starting
-    /// a miner thread that mines to the primary account. Also create two
-    /// sub-accounts, one for Alice and one for Bob. Alice funding will be
-    /// INITIAL_FUNDS_ALICE
-    pub async fn init_with_default_accounts(&self) -> Result<()> {
-        self.init_with_accounts(INITIAL_FUNDS_ALICE, 0).await
     }
 
     /// Initialise by creating a wallet, generating some `blocks`, and starting
