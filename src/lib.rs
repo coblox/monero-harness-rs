@@ -105,19 +105,14 @@ impl<'c> Client<'c> {
     /// sub-accounts, one for Alice and one for Bob. Alice funding will be
     /// INITIAL_FUNDS_ALICE
     pub async fn init_with_default_accounts(&self) -> Result<()> {
-        self.init_with_accounts(Some(INITIAL_FUNDS_ALICE), None)
-            .await
+        self.init_with_accounts(INITIAL_FUNDS_ALICE, 0).await
     }
 
     /// Initialise by creating a wallet, generating some `blocks`, and starting
     /// a miner thread that mines to the primary account. Also create two
     /// sub-accounts, one for Alice and one for Bob. If alice/bob_funding is
     /// some, the value needs to be > 0.
-    pub async fn init_with_accounts(
-        &self,
-        alice_funding: Option<u64>,
-        bob_funding: Option<u64>,
-    ) -> Result<()> {
+    pub async fn init_with_accounts(&self, alice_funding: u64, bob_funding: u64) -> Result<()> {
         self.wallet.create_wallet("miner_wallet").await?;
 
         let alice = self.wallet.create_account("alice").await?;
@@ -128,14 +123,14 @@ impl<'c> Client<'c> {
         let res = self.monerod.generate_blocks(70, &miner).await?;
         self.wait_for_wallet_block_height(res.height).await?;
 
-        if let Some(alice_funding) = alice_funding {
+        if alice_funding > 0 {
             self.fund_account(&alice.address, &miner, alice_funding)
                 .await?;
             let balance = self.wallet.get_balance_alice().await?;
             debug_assert!(balance == alice_funding);
         }
 
-        if let Some(bob_funding) = bob_funding {
+        if bob_funding > 0 {
             self.fund_account(&bob.address, &miner, bob_funding).await?;
             let balance = self.wallet.get_balance_bob().await?;
             debug_assert!(balance == bob_funding);

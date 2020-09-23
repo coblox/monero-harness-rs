@@ -100,7 +100,7 @@ async fn init_accounts_for_alice_and_bob() {
     let want_alice_balance = 1000;
     let want_bob_balance = 0;
 
-    cli.init_with_accounts(Some(want_alice_balance), None)
+    cli.init_with_accounts(want_alice_balance, want_bob_balance)
         .await
         .expect("failed to init");
 
