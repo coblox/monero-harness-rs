@@ -177,20 +177,29 @@ impl Client {
     }
 
     /// Transfers moneroj from the primary account.
-    pub async fn transfer_from_primary(&self, amount: u64, address: String) -> Result<Transfer> {
-        let dest = vec![Destination { amount, address }];
+    pub async fn transfer_from_primary(&self, amount: u64, address: &str) -> Result<Transfer> {
+        let dest = vec![Destination {
+            amount,
+            address: address.to_owned(),
+        }];
         self.multi_transfer(ACCOUNT_INDEX_PRIMARY, dest).await
     }
 
     /// Transfers moneroj from Alice's account.
-    pub async fn transfer_from_alice(&self, amount: u64, address: String) -> Result<Transfer> {
-        let dest = vec![Destination { amount, address }];
+    pub async fn transfer_from_alice(&self, amount: u64, address: &str) -> Result<Transfer> {
+        let dest = vec![Destination {
+            amount,
+            address: address.to_owned(),
+        }];
         self.multi_transfer(ACCOUNT_INDEX_ALICE, dest).await
     }
 
     /// Transfers moneroj from Bob's account.
-    pub async fn transfer_from_bob(&self, amount: u64, address: String) -> Result<Transfer> {
-        let dest = vec![Destination { amount, address }];
+    pub async fn transfer_from_bob(&self, amount: u64, address: &str) -> Result<Transfer> {
+        let dest = vec![Destination {
+            amount,
+            address: address.to_owned(),
+        }];
         self.multi_transfer(ACCOUNT_INDEX_BOB, dest).await
     }
 

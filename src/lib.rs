@@ -93,7 +93,7 @@ impl<'c> Client<'c> {
         self.wallet.create_wallet("miner_wallet").await?;
         let miner = self.wallet.get_address_primary().await?.address;
 
-        let _ = self.monerod.generate_blocks(blocks, miner.clone()).await?;
+        let _ = self.monerod.generate_blocks(blocks, &miner).await?;
 
         let _ = tokio::spawn(mine(self.monerod.clone(), miner));
 
@@ -102,7 +102,8 @@ impl<'c> Client<'c> {
 
     /// Initialise by creating a wallet, generating some `blocks`, and starting
     /// a miner thread that mines to the primary account. Also create two
-    /// sub-accounts, one for Alice and one for Bob. Alice funding will be INITIAL_FUNDS_ALICE
+    /// sub-accounts, one for Alice and one for Bob. Alice funding will be
+    /// INITIAL_FUNDS_ALICE
     pub async fn init_with_default_accounts(&self) -> Result<()> {
         self.init_with_accounts(Some(INITIAL_FUNDS_ALICE), None)
             .await
@@ -110,8 +111,8 @@ impl<'c> Client<'c> {
 
     /// Initialise by creating a wallet, generating some `blocks`, and starting
     /// a miner thread that mines to the primary account. Also create two
-    /// sub-accounts, one for Alice and one for Bob. If alice/bob_funding is some, the value
-    /// needs to be > 0.
+    /// sub-accounts, one for Alice and one for Bob. If alice/bob_funding is
+    /// some, the value needs to be > 0.
     pub async fn init_with_accounts(
         &self,
         alice_funding: Option<u64>,
@@ -124,18 +125,18 @@ impl<'c> Client<'c> {
 
         let miner = self.wallet.get_address_primary().await?.address;
 
-        let res = self.monerod.generate_blocks(70, miner.clone()).await?;
+        let res = self.monerod.generate_blocks(70, &miner).await?;
         self.wait_for_wallet_block_height(res.height).await?;
 
         if let Some(alice_funding) = alice_funding {
-            self.fund_account(alice.address, &miner, alice_funding)
+            self.fund_account(&alice.address, &miner, alice_funding)
                 .await?;
             let balance = self.wallet.get_balance_alice().await?;
             debug_assert!(balance == alice_funding);
         }
 
         if let Some(bob_funding) = bob_funding {
-            self.fund_account(bob.address, &miner, bob_funding).await?;
+            self.fund_account(&bob.address, &miner, bob_funding).await?;
             let balance = self.wallet.get_balance_bob().await?;
             debug_assert!(balance == bob_funding);
         }
@@ -145,9 +146,9 @@ impl<'c> Client<'c> {
         Ok(())
     }
 
-    async fn fund_account(&self, address: String, miner: &String, funding: u64) -> Result<()> {
+    async fn fund_account(&self, address: &str, miner: &str, funding: u64) -> Result<()> {
         self.wallet.transfer_from_primary(funding, address).await?;
-        let res = self.monerod.generate_blocks(10, miner.clone()).await?;
+        let res = self.monerod.generate_blocks(10, miner).await?;
         self.wait_for_wallet_block_height(res.height).await?;
         Ok(())
     }
@@ -165,7 +166,7 @@ impl<'c> Client<'c> {
 async fn mine(monerod: monerod::Client, reward_address: String) -> Result<()> {
     loop {
         tokio::time::delay_for(Duration::from_secs(BLOCK_TIME_SECS)).await;
-        monerod.generate_blocks(1, reward_address.clone()).await?;
+        monerod.generate_blocks(1, &reward_address).await?;
     }
 }
 

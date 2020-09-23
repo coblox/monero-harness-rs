@@ -32,11 +32,11 @@ impl Client {
     pub async fn generate_blocks(
         &self,
         amount_of_blocks: u32,
-        wallet_address: String,
+        wallet_address: &str,
     ) -> Result<GenerateBlocks> {
         let params = GenerateBlocksParams {
             amount_of_blocks,
-            wallet_address,
+            wallet_address: wallet_address.to_owned(),
         };
         let request = Request::new("generateblocks", params);
 
