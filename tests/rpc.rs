@@ -7,7 +7,7 @@ use tokio::time;
 #[tokio::test]
 async fn connect_to_monerod() {
     let docker = clients::Cli::default();
-    let cli = Client::new_with_random_local_ports(&docker);
+    let cli = Client::new(&docker);
 
     let header = cli
         .monerod
@@ -21,8 +21,11 @@ async fn connect_to_monerod() {
 #[tokio::test]
 async fn miner_is_running_and_producing_blocks() {
     let docker_client = clients::Cli::default();
-    let client = Client::new_with_random_local_ports(&docker_client);
-    client.init(2).await.expect("Failed to initialize");
+    let client = Client::new(&docker_client);
+    client
+        .init_just_miner(2)
+        .await
+        .expect("Failed to initialize");
 
     // Only need 3 seconds since we mine a block every second but
     // give it 5 just for good measure.
@@ -41,7 +44,7 @@ async fn miner_is_running_and_producing_blocks() {
 #[tokio::test]
 async fn wallet_and_accounts() {
     let docker = clients::Cli::default();
-    let cli = Client::new_with_random_local_ports(&docker);
+    let cli = Client::new(&docker);
 
     let _ = cli
         .wallet
@@ -62,7 +65,7 @@ async fn wallet_and_accounts() {
 #[tokio::test]
 async fn create_account_and_retrieve_it() {
     let docker = clients::Cli::default();
-    let cli = Client::new_with_random_local_ports(&docker);
+    let cli = Client::new(&docker);
 
     let label = "Arbitrary Label"; // This is intentionally _not_ Alice or Bob.
 
@@ -95,12 +98,12 @@ async fn create_account_and_retrieve_it() {
 #[tokio::test]
 async fn init_accounts_for_alice_and_bob() {
     let docker = clients::Cli::default();
-    let cli = Client::new_with_random_local_ports(&docker);
+    let cli = Client::new(&docker);
 
     let want_alice_balance = 1000;
     let want_bob_balance = 0;
 
-    cli.init_with_accounts(want_alice_balance, want_bob_balance)
+    cli.init(want_alice_balance, want_bob_balance)
         .await
         .expect("failed to init");
 

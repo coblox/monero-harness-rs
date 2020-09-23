@@ -61,23 +61,10 @@ impl<'c> Client<'c> {
     }
 
     /// Initialise by creating a wallet, generating some `blocks`, and starting
-    /// a miner thread that mines to the primary account.
-    pub async fn init(&self, blocks: u32) -> Result<()> {
-        self.wallet.create_wallet("miner_wallet").await?;
-        let miner = self.wallet.get_address_primary().await?.address;
-
-        let _ = self.monerod.generate_blocks(blocks, &miner).await?;
-
-        let _ = tokio::spawn(mine(self.monerod.clone(), miner));
-
-        Ok(())
-    }
-
-    /// Initialise by creating a wallet, generating some `blocks`, and starting
     /// a miner thread that mines to the primary account. Also create two
     /// sub-accounts, one for Alice and one for Bob. If alice/bob_funding is
     /// some, the value needs to be > 0.
-    pub async fn init_with_accounts(&self, alice_funding: u64, bob_funding: u64) -> Result<()> {
+    pub async fn init(&self, alice_funding: u64, bob_funding: u64) -> Result<()> {
         self.wallet.create_wallet("miner_wallet").await?;
 
         let alice = self.wallet.create_account("alice").await?;
@@ -100,6 +87,18 @@ impl<'c> Client<'c> {
             let balance = self.wallet.get_balance_bob().await?;
             debug_assert!(balance == bob_funding);
         }
+
+        let _ = tokio::spawn(mine(self.monerod.clone(), miner));
+
+        Ok(())
+    }
+
+    /// Just create a wallet and start mining (you probably want `init()`).
+    pub async fn init_just_miner(&self, blocks: u32) -> Result<()> {
+        self.wallet.create_wallet("miner_wallet").await?;
+        let miner = self.wallet.get_address_primary().await?.address;
+
+        let _ = self.monerod.generate_blocks(blocks, &miner).await?;
 
         let _ = tokio::spawn(mine(self.monerod.clone(), miner));
 
