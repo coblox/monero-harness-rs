@@ -19,14 +19,14 @@ pub struct Client {
 
 impl Client {
     /// New local host monerod RPC client.
-    pub fn localhost(port: u16) -> Result<Self> {
+    pub fn localhost(port: u16) -> Self {
         let url = format!("http://127.0.0.1:{}/json_rpc", port);
-        let url = Url::parse(&url)?;
+        let url = Url::parse(&url).expect("url is well formed");
 
-        Ok(Self {
+        Self {
             inner: reqwest::Client::new(),
             url,
-        })
+        }
     }
 
     pub async fn generate_blocks(

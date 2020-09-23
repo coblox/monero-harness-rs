@@ -14,49 +14,86 @@
 
 //! Provides a JSON RPC client for monerod and monero-wallet-rpc
 
-mod monerod;
-mod wallet;
+pub mod monerod;
+pub mod wallet;
 
 use anyhow::Result;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use testcontainers::{
-    clients,
+    clients::Cli,
     core::Port,
     images::generic::{GenericImage, Stream, WaitFor},
-    Container, Docker, Image,
+    Docker, Image,
 };
 
 /// How often we mine a block.
 const BLOCK_TIME_SECS: u64 = 1;
+
 /// Poll interval when checking if the wallet has synced with monerod.
 const WAIT_WALLET_SYNC_MILLIS: u64 = 1000;
 
-/// RPC client for `monerod` and `monero-wallet-rpc`.
+/// A docker container with a `monerod` instance and a `monero-wallet-rpc`
+/// instance.
 #[derive(Debug)]
-pub struct Client<'c> {
-    container: Container<'c, clients::Cli, GenericImage>,
-    pub wallet: wallet::Client,
-    pub monerod: monerod::Client,
+pub struct Container<'c> {
+    inner: testcontainers::Container<'c, Cli, GenericImage>,
+    pub monerod_rpc_port: u16,
+    pub wallet_rpc_port: u16,
 }
 
-impl<'c> Client<'c> {
-    /// Constructor that generates random port numbers for the local port
-    /// mapping of `monerod` and `monero-wallet-rpc`.
-    pub fn new(cli: &'c clients::Cli) -> Self {
+impl<'c> Container<'c> {
+    /// Creates a new monero container mapping random local ports for the two
+    /// RPC endpoints.
+    pub fn new(cli: &'c Cli) -> Self {
         let mut rng = rand::thread_rng();
         let monerod_rpc_port: u16 = rng.gen_range(1024, u16::MAX);
         let wallet_rpc_port: u16 = rng.gen_range(1024, u16::MAX);
 
-        let container = spin_up_container(cli, monerod_rpc_port, wallet_rpc_port);
+        let image = GenericImage::new("xmrto/monero")
+        .with_mapped_port(Port {
+            local: monerod_rpc_port,
+            internal: 28081,
+        })
+        .with_mapped_port(Port {
+            local: wallet_rpc_port,
+            internal: 28083,
+        })
+        .with_entrypoint("")
+        .with_args(vec![
+            "/bin/bash".to_string(),
+            "-c".to_string(),
+            "monerod --confirm-external-bind --non-interactive --regtest --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28081 --no-igd --hide-my-port --fixed-difficulty 1 --rpc-payment-allow-free-loopback --data-dir /monero & \
+             monero-wallet-rpc --log-level 4 --daemon-address localhost:28081 --confirm-external-bind --disable-rpc-login --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28083  --wallet-dir /monero/".to_string(),
+        ])
+        .with_wait_for(WaitFor::LogMessage { message: "You are now synchronized with the network. You may now start monero-wallet-cli".to_string(), stream: Stream::StdOut });
+
+        let container = cli.run(image);
 
         Self {
-            container,
-            wallet: wallet::Client::localhost(wallet_rpc_port)
-                .expect("failed to create wallet client"),
-            monerod: monerod::Client::localhost(monerod_rpc_port)
-                .expect("failed to create monerod client"),
+            inner: container,
+            monerod_rpc_port,
+            wallet_rpc_port,
+        }
+    }
+}
+
+/// RPC client for `monerod` and `monero-wallet-rpc`. This struct implements
+/// methods mostly useful for testing, non-test users probably want to manage
+/// the wallet and monerod instance separately.
+#[derive(Debug)]
+pub struct Client {
+    pub wallet: wallet::Client,
+    pub monerod: monerod::Client,
+}
+
+impl Client {
+    /// Create a new Client instance that connects to respective ports.
+    pub fn new(monerod_rpc_port: u16, wallet_rpc_port: u16) -> Self {
+        Self {
+            wallet: wallet::Client::localhost(wallet_rpc_port),
+            monerod: monerod::Client::localhost(monerod_rpc_port),
         }
     }
 
@@ -119,32 +156,6 @@ impl<'c> Client<'c> {
         }
         Ok(())
     }
-}
-
-pub fn spin_up_container(
-    cli: &'_ clients::Cli,
-    monerod_rpc_port: u16,
-    wallet_rpc_port: u16,
-) -> Container<'_, clients::Cli, GenericImage> {
-    let image = GenericImage::new("xmrto/monero")
-        .with_mapped_port(Port {
-            local: monerod_rpc_port,
-            internal: 28081,
-        })
-        .with_mapped_port(Port {
-            local: wallet_rpc_port,
-            internal: 28083,
-        })
-        .with_entrypoint("")
-        .with_args(vec![
-            "/bin/bash".to_string(),
-            "-c".to_string(),
-            "monerod --confirm-external-bind --non-interactive --regtest --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28081 --no-igd --hide-my-port --fixed-difficulty 1 --rpc-payment-allow-free-loopback --data-dir /monero & \
-             monero-wallet-rpc --log-level 4 --daemon-address localhost:28081 --confirm-external-bind --disable-rpc-login --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28083  --wallet-dir /monero/".to_string(),
-        ])
-        .with_wait_for(WaitFor::LogMessage { message: "You are now synchronized with the network. You may now start monero-wallet-cli".to_string(), stream: Stream::StdOut });
-
-    cli.run(image)
 }
 
 /// Mine a block ever BLOCK_TIME_SECS seconds.

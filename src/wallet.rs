@@ -20,14 +20,14 @@ pub struct Client {
 
 impl Client {
     /// New local host monero-wallet-rpc client.
-    pub fn localhost(port: u16) -> Result<Self> {
+    pub fn localhost(port: u16) -> Self {
         let url = format!("http://127.0.0.1:{}/json_rpc", port);
-        let url = Url::parse(&url)?;
+        let url = Url::parse(&url).expect("url is well formed");
 
-        Ok(Self {
+        Self {
             inner: reqwest::Client::new(),
             url,
-        })
+        }
     }
 
     /// Get addresses for the primary account.
@@ -335,7 +335,7 @@ pub struct Transfer {
     unsigned_txset: String,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Copy, Debug, Deserialize)]
 pub struct BlockHeight {
     pub height: u32,
 }
