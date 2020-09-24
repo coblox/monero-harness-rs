@@ -168,6 +168,7 @@ impl Client {
         let params = TransferParams {
             account_index,
             destinations,
+            get_tx_key: true,
         };
         let request = Request::new("transfer", params);
 
@@ -186,7 +187,7 @@ impl Client {
         Ok(r.result)
     }
 
-    /// Get wallet block height, this might be behind monerod height
+    /// Get wallet block height, this might be behind monerod height.
     pub(crate) async fn block_height(&self) -> Result<BlockHeight> {
         let request = Request::new("get_height", "");
 
@@ -202,6 +203,35 @@ impl Client {
         debug!("wallet height RPC response: {}", response);
 
         let r: Response<BlockHeight> = serde_json::from_str(&response)?;
+        Ok(r.result)
+    }
+
+    /// Check a transaction in the blockchain with its secret key.
+    pub async fn check_tx_key(
+        &self,
+        tx_id: &str,
+        tx_key: &str,
+        address: &str,
+    ) -> Result<CheckTxKey> {
+        let params = CheckTxKeyParams {
+            tx_id: tx_id.to_owned(),
+            tx_key: tx_key.to_owned(),
+            address: address.to_owned(),
+        };
+        let request = Request::new("check_tx_key", params);
+
+        let response = self
+            .inner
+            .post(self.url.clone())
+            .json(&request)
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        debug!("transfer RPC response: {}", response);
+
+        let r: Response<CheckTxKey> = serde_json::from_str(&response)?;
         Ok(r.result)
     }
 }
@@ -271,8 +301,12 @@ struct CreateWalletParams {
 
 #[derive(Serialize, Debug, Clone)]
 struct TransferParams {
+    // Transfer from this account.
     account_index: u32,
+    // Destinations to receive XMR:
     destinations: Vec<Destination>,
+    // Return the transaction key after sending.
+    get_tx_key: bool,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -283,17 +317,32 @@ pub struct Destination {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Transfer {
-    amount: u64,
-    fee: u64,
-    multisig_txset: String,
-    tx_blob: String,
-    tx_hash: String,
-    tx_key: String,
-    tx_metadata: String,
-    unsigned_txset: String,
+    pub amount: u64,
+    pub fee: u64,
+    pub multisig_txset: String,
+    pub tx_blob: String,
+    pub tx_hash: String,
+    pub tx_key: String,
+    pub tx_metadata: String,
+    pub unsigned_txset: String,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize)]
 pub struct BlockHeight {
     pub height: u32,
+}
+
+#[derive(Serialize, Debug, Clone)]
+struct CheckTxKeyParams {
+    #[serde(rename = "txid")]
+    tx_id: String,
+    tx_key: String,
+    address: String,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize)]
+pub struct CheckTxKey {
+    pub confirmations: u32,
+    pub in_pool: bool,
+    pub received: u64,
 }
