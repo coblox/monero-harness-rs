@@ -14,6 +14,94 @@ pub struct Monero {
     entrypoint: Option<String>,
 }
 
+impl Image for Monero {
+    type Args = Args;
+    type EnvVars = HashMap<String, String>;
+    type Volumes = HashMap<String, String>;
+    type EntryPoint = str;
+
+    fn descriptor(&self) -> String {
+        format!("xmrto/monero:{}", self.tag)
+    }
+
+    fn wait_until_ready<D: Docker>(&self, container: &Container<'_, D, Self>) {
+        container
+            .logs()
+            .stdout
+            .wait_for_message(
+                "You are now synchronized with the network. You may now start monero-wallet-cli",
+            )
+            .unwrap();
+
+        let additional_sleep_period =
+            var("MONERO_ADDITIONAL_SLEEP_PERIOD").map(|value| value.parse());
+
+        if let Ok(Ok(sleep_period)) = additional_sleep_period {
+            let sleep_period = Duration::from_millis(sleep_period);
+
+            sleep(sleep_period)
+        }
+    }
+
+    fn args(&self) -> <Self as Image>::Args {
+        self.args.clone()
+    }
+
+    fn volumes(&self) -> Self::Volumes {
+        HashMap::new()
+    }
+
+    fn env_vars(&self) -> Self::EnvVars {
+        HashMap::new()
+    }
+
+    fn ports(&self) -> Option<Vec<Port>> {
+        self.ports.clone()
+    }
+
+    fn with_args(self, args: <Self as Image>::Args) -> Self {
+        Monero { args, ..self }
+    }
+
+    fn with_entrypoint(self, entrypoint: &Self::EntryPoint) -> Self {
+        Self {
+            entrypoint: Some(entrypoint.to_string()),
+            ..self
+        }
+    }
+
+    fn entrypoint(&self) -> Option<String> {
+        self.entrypoint.to_owned()
+    }
+}
+
+impl Default for Monero {
+    fn default() -> Self {
+        Monero {
+            tag: "v0.16.0.3".into(),
+            args: Args::default(),
+            ports: None,
+            entrypoint: Some("".into()),
+        }
+    }
+}
+
+impl Monero {
+    pub fn with_tag(self, tag_str: &str) -> Self {
+        Monero {
+            tag: tag_str.to_string(),
+            ..self
+        }
+    }
+
+    pub fn with_mapped_port<P: Into<Port>>(mut self, port: P) -> Self {
+        let mut ports = self.ports.unwrap_or_default();
+        ports.push(port.into());
+        self.ports = Some(ports);
+        self
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Args {
     monerod: MonerodArgs,
@@ -179,93 +267,5 @@ impl IntoIterator for Args {
         println!("iter: {:?}", args);
 
         args.into_iter()
-    }
-}
-
-impl Image for Monero {
-    type Args = Args;
-    type EnvVars = HashMap<String, String>;
-    type Volumes = HashMap<String, String>;
-    type EntryPoint = str;
-
-    fn descriptor(&self) -> String {
-        format!("xmrto/monero:{}", self.tag)
-    }
-
-    fn wait_until_ready<D: Docker>(&self, container: &Container<'_, D, Self>) {
-        container
-            .logs()
-            .stdout
-            .wait_for_message(
-                "You are now synchronized with the network. You may now start monero-wallet-cli",
-            )
-            .unwrap();
-
-        let additional_sleep_period =
-            var("MONERO_ADDITIONAL_SLEEP_PERIOD").map(|value| value.parse());
-
-        if let Ok(Ok(sleep_period)) = additional_sleep_period {
-            let sleep_period = Duration::from_millis(sleep_period);
-
-            sleep(sleep_period)
-        }
-    }
-
-    fn args(&self) -> <Self as Image>::Args {
-        self.args.clone()
-    }
-
-    fn volumes(&self) -> Self::Volumes {
-        HashMap::new()
-    }
-
-    fn env_vars(&self) -> Self::EnvVars {
-        HashMap::new()
-    }
-
-    fn ports(&self) -> Option<Vec<Port>> {
-        self.ports.clone()
-    }
-
-    fn with_args(self, args: <Self as Image>::Args) -> Self {
-        Monero { args, ..self }
-    }
-
-    fn with_entrypoint(self, entrypoint: &Self::EntryPoint) -> Self {
-        Self {
-            entrypoint: Some(entrypoint.to_string()),
-            ..self
-        }
-    }
-
-    fn entrypoint(&self) -> Option<String> {
-        self.entrypoint.to_owned()
-    }
-}
-
-impl Default for Monero {
-    fn default() -> Self {
-        Monero {
-            tag: "v0.16.0.3".into(),
-            args: Args::default(),
-            ports: None,
-            entrypoint: Some("".into()),
-        }
-    }
-}
-
-impl Monero {
-    pub fn with_tag(self, tag_str: &str) -> Self {
-        Monero {
-            tag: tag_str.to_string(),
-            ..self
-        }
-    }
-
-    pub fn with_mapped_port<P: Into<Port>>(mut self, port: P) -> Self {
-        let mut ports = self.ports.unwrap_or_default();
-        ports.push(port.into());
-        self.ports = Some(ports);
-        self
     }
 }

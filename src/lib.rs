@@ -45,7 +45,6 @@ const ACCOUNT_INDEX_PRIMARY: u32 = 0;
 const ACCOUNT_INDEX_ALICE: u32 = 1;
 const ACCOUNT_INDEX_BOB: u32 = 2;
 
-// TODO: Currently image does not include the wallet.
 #[derive(Debug)]
 pub struct Monero<'c> {
     pub docker: Container<'c, Cli, image::Monero>,
