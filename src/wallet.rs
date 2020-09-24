@@ -165,7 +165,11 @@ impl Client {
         account_index: u32,
         destinations: Vec<Destination>,
     ) -> Result<Transfer> {
-        let params = TransferParams::new(account_index, destinations);
+        let params = TransferParams {
+            account_index,
+            destinations,
+            get_tx_key: true,
+        };
         let request = Request::new("transfer", params);
 
         let response = self
@@ -301,39 +305,14 @@ struct TransferParams {
     account_index: u32,
     // Destinations to receive XMR:
     destinations: Vec<Destination>,
-    // Set a priority for the transaction. Accepted Values are: 0-3 for: default, unimportant,
-    // normal, elevated, priority.
-    priority: u32,
-    // Number of outputs from the blockchain to mix with (0 means no mixing).
-    mixin: u32,
-    // Number of outputs to mix in the transaction (this output + N decoys from the blockchain).
-    ring_size: u32,
-    //  Number of blocks before the monero can be spent (0 to not add a lock).
-    unlock_time: u32,
     // Return the transaction key after sending.
     get_tx_key: bool,
 }
 
 #[derive(Serialize, Debug, Clone)]
 pub struct Destination {
-    // Amount to send to each destination, in atomic units.
     amount: u64,
-    // Destination public address.
     address: String,
-}
-
-impl TransferParams {
-    fn new(index: u32, destinations: Vec<Destination>) -> Self {
-        Self {
-            account_index: index,
-            destinations,
-            priority: 0,
-            mixin: 0,
-            ring_size: 0,
-            unlock_time: 0,
-            get_tx_key: true,
-        }
-    }
 }
 
 #[derive(Deserialize, Debug, Clone)]
