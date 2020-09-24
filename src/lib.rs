@@ -12,8 +12,16 @@
 )]
 #![forbid(unsafe_code)]
 
-//! Provides a JSON RPC client for monerod and monero-wallet-rpc
+//! # monero-harness
+//!
+//! A simple lib to start a monero container (incl. monerod and
+//! monero-wallet-rpc). Provides initialisation methods to generate blocks,
+//! create and fund accounts, and start a continuous mining task mining blocks
+//! every BLOCK_TIME_SECS seconds.
+//!
+//! Also provides standalone JSON RPC clients for monerod and monero-wallet-rpc.
 
+pub mod image;
 pub mod monerod;
 pub mod wallet;
 
@@ -21,12 +29,8 @@ use anyhow::Result;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use testcontainers::{
-    clients::Cli,
-    core::Port,
-    images::generic::{GenericImage, Stream, WaitFor},
-    Docker, Image,
-};
+use testcontainers::{clients::Cli, core::Port, Container, Docker, Image};
+use tokio::time;
 
 use crate::wallet::{GetAddress, Transfer};
 
@@ -41,67 +45,50 @@ const ACCOUNT_INDEX_PRIMARY: u32 = 0;
 const ACCOUNT_INDEX_ALICE: u32 = 1;
 const ACCOUNT_INDEX_BOB: u32 = 2;
 
-/// A docker container with a `monerod` instance and a `monero-wallet-rpc`
-/// instance.
+// TODO: Currently image does not include the wallet.
 #[derive(Debug)]
-pub struct Container<'c> {
-    inner: testcontainers::Container<'c, Cli, GenericImage>,
+pub struct Monero<'c> {
+    pub docker: Container<'c, Cli, image::Monero>,
     pub monerod_rpc_port: u16,
     pub wallet_rpc_port: u16,
 }
 
-impl<'c> Container<'c> {
-    /// Creates a new monero container mapping random local ports for the two
-    /// RPC endpoints.
+impl<'c> Monero<'c> {
+    /// Starts a new regtest monero container.
     pub fn new(cli: &'c Cli) -> Self {
         let mut rng = rand::thread_rng();
         let monerod_rpc_port: u16 = rng.gen_range(1024, u16::MAX);
         let wallet_rpc_port: u16 = rng.gen_range(1024, u16::MAX);
 
-        let image = GenericImage::new("xmrto/monero")
-        .with_mapped_port(Port {
-            local: monerod_rpc_port,
-            internal: 28081,
-        })
-        .with_mapped_port(Port {
-            local: wallet_rpc_port,
-            internal: 28083,
-        })
-        .with_entrypoint("")
-        .with_args(vec![
-            "/bin/bash".to_string(),
-            "-c".to_string(),
-            "monerod --confirm-external-bind --non-interactive --regtest --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28081 --no-igd --hide-my-port --fixed-difficulty 1 --rpc-payment-allow-free-loopback --data-dir /monero & \
-             monero-wallet-rpc --log-level 4 --daemon-address localhost:28081 --confirm-external-bind --disable-rpc-login --rpc-bind-ip 0.0.0.0 --rpc-bind-port 28083  --wallet-dir /monero/".to_string(),
-        ])
-        .with_wait_for(WaitFor::LogMessage { message: "You are now synchronized with the network. You may now start monero-wallet-cli".to_string(), stream: Stream::StdOut });
+        let image = image::Monero::default()
+            .with_mapped_port(Port {
+                local: monerod_rpc_port,
+                // TODO: Define const for internal monerod port.
+                internal: 28081,
+            })
+            .with_mapped_port(Port {
+                local: wallet_rpc_port,
+                // TODO: Define const for internal wallet port.
+                internal: 28083,
+            });
 
-        let container = cli.run(image);
+        println!("running image ...");
+        let docker = cli.run(image);
+        println!("image ran");
 
         Self {
-            inner: container,
+            docker,
             monerod_rpc_port,
             wallet_rpc_port,
         }
     }
-}
 
-/// RPC client for `monerod` and `monero-wallet-rpc`. This struct implements
-/// methods mostly useful for testing, non-test users probably want to manage
-/// the wallet and monerod instance separately.
-#[derive(Debug)]
-pub struct Client {
-    pub wallet: wallet::Client,
-    pub monerod: monerod::Client,
-}
+    pub fn wallet_rpc_client(&self) -> wallet::Client {
+        wallet::Client::localhost(self.wallet_rpc_port)
+    }
 
-impl Client {
-    /// Create a new Client instance that connects to respective ports.
-    pub fn new(monerod_rpc_port: u16, wallet_rpc_port: u16) -> Self {
-        Self {
-            wallet: wallet::Client::localhost(wallet_rpc_port),
-            monerod: monerod::Client::localhost(monerod_rpc_port),
-        }
+    pub fn monerod_rpc_client(&self) -> monerod::Client {
+        monerod::Client::localhost(self.monerod_rpc_port)
     }
 
     /// Initialise by creating a wallet, generating some `blocks`, and starting
@@ -109,14 +96,17 @@ impl Client {
     /// sub-accounts, one for Alice and one for Bob. If alice/bob_funding is
     /// some, the value needs to be > 0.
     pub async fn init(&self, alice_funding: u64, bob_funding: u64) -> Result<()> {
-        self.wallet.create_wallet("miner_wallet").await?;
+        let wallet = self.wallet_rpc_client();
+        let monerod = self.monerod_rpc_client();
 
-        let alice = self.wallet.create_account("alice").await?;
-        let bob = self.wallet.create_account("bob").await?;
+        wallet.create_wallet("miner_wallet").await?;
+
+        let alice = wallet.create_account("alice").await?;
+        let bob = wallet.create_account("bob").await?;
 
         let miner = self.get_address_primary().await?.address;
 
-        let res = self.monerod.generate_blocks(70, &miner).await?;
+        let res = monerod.generate_blocks(70, &miner).await?;
         self.wait_for_wallet_block_height(res.height).await?;
 
         if alice_funding > 0 {
@@ -132,94 +122,106 @@ impl Client {
             debug_assert!(balance == bob_funding);
         }
 
-        let _ = tokio::spawn(mine(self.monerod.clone(), miner));
+        let _ = tokio::spawn(mine(monerod.clone(), miner));
 
         Ok(())
     }
 
     /// Just create a wallet and start mining (you probably want `init()`).
     pub async fn init_just_miner(&self, blocks: u32) -> Result<()> {
-        self.wallet.create_wallet("miner_wallet").await?;
+        let wallet = self.wallet_rpc_client();
+        let monerod = self.monerod_rpc_client();
+
+        wallet.create_wallet("miner_wallet").await?;
         let miner = self.get_address_primary().await?.address;
 
-        let _ = self.monerod.generate_blocks(blocks, &miner).await?;
+        let _ = monerod.generate_blocks(blocks, &miner).await?;
 
-        let _ = tokio::spawn(mine(self.monerod.clone(), miner));
+        let _ = tokio::spawn(mine(monerod.clone(), miner));
 
         Ok(())
     }
 
     async fn fund_account(&self, address: &str, miner: &str, funding: u64) -> Result<()> {
+        let monerod = self.monerod_rpc_client();
+
         self.transfer_from_primary(funding, address).await?;
-        let res = self.monerod.generate_blocks(10, miner).await?;
+        let res = monerod.generate_blocks(10, miner).await?;
         self.wait_for_wallet_block_height(res.height).await?;
+
         Ok(())
     }
 
     // It takes a little while for the wallet to sync with monerod.
     async fn wait_for_wallet_block_height(&self, height: u32) -> Result<()> {
-        while self.wallet.block_height().await?.height < height {
-            tokio::time::delay_for(Duration::from_millis(WAIT_WALLET_SYNC_MILLIS)).await;
+        let wallet = self.wallet_rpc_client();
+        while wallet.block_height().await?.height < height {
+            time::delay_for(Duration::from_millis(WAIT_WALLET_SYNC_MILLIS)).await;
         }
         Ok(())
     }
 
     /// Get addresses for the primary account.
     pub async fn get_address_primary(&self) -> Result<GetAddress> {
-        self.wallet.get_address(ACCOUNT_INDEX_PRIMARY).await
+        let wallet = self.wallet_rpc_client();
+        wallet.get_address(ACCOUNT_INDEX_PRIMARY).await
     }
 
     /// Get addresses for the Alice's account.
     pub async fn get_address_alice(&self) -> Result<GetAddress> {
-        self.wallet.get_address(ACCOUNT_INDEX_ALICE).await
+        let wallet = self.wallet_rpc_client();
+        wallet.get_address(ACCOUNT_INDEX_ALICE).await
     }
 
     /// Get addresses for the Bob's account.
     pub async fn get_address_bob(&self) -> Result<GetAddress> {
-        self.wallet.get_address(ACCOUNT_INDEX_BOB).await
+        let wallet = self.wallet_rpc_client();
+        wallet.get_address(ACCOUNT_INDEX_BOB).await
     }
 
     /// Gets the balance of the wallet primary account.
     pub async fn get_balance_primary(&self) -> Result<u64> {
-        self.wallet.get_balance(ACCOUNT_INDEX_PRIMARY).await
+        let wallet = self.wallet_rpc_client();
+        wallet.get_balance(ACCOUNT_INDEX_PRIMARY).await
     }
 
     /// Gets the balance of Alice's account.
     pub async fn get_balance_alice(&self) -> Result<u64> {
-        self.wallet.get_balance(ACCOUNT_INDEX_ALICE).await
+        let wallet = self.wallet_rpc_client();
+        wallet.get_balance(ACCOUNT_INDEX_ALICE).await
     }
 
     /// Gets the balance of Bob's account.
     pub async fn get_balance_bob(&self) -> Result<u64> {
-        self.wallet.get_balance(ACCOUNT_INDEX_BOB).await
+        let wallet = self.wallet_rpc_client();
+        wallet.get_balance(ACCOUNT_INDEX_BOB).await
     }
 
     /// Transfers moneroj from the primary account.
     pub async fn transfer_from_primary(&self, amount: u64, address: &str) -> Result<Transfer> {
-        self.wallet
+        let wallet = self.wallet_rpc_client();
+        wallet
             .transfer(ACCOUNT_INDEX_PRIMARY, amount, address)
             .await
     }
 
     /// Transfers moneroj from Alice's account.
     pub async fn transfer_from_alice(&self, amount: u64, address: &str) -> Result<Transfer> {
-        self.wallet
-            .transfer(ACCOUNT_INDEX_ALICE, amount, address)
-            .await
+        let wallet = self.wallet_rpc_client();
+        wallet.transfer(ACCOUNT_INDEX_ALICE, amount, address).await
     }
 
     /// Transfers moneroj from Bob's account.
     pub async fn transfer_from_bob(&self, amount: u64, address: &str) -> Result<Transfer> {
-        self.wallet
-            .transfer(ACCOUNT_INDEX_BOB, amount, address)
-            .await
+        let wallet = self.wallet_rpc_client();
+        wallet.transfer(ACCOUNT_INDEX_BOB, amount, address).await
     }
 }
 
 /// Mine a block ever BLOCK_TIME_SECS seconds.
 async fn mine(monerod: monerod::Client, reward_address: String) -> Result<()> {
     loop {
-        tokio::time::delay_for(Duration::from_secs(BLOCK_TIME_SECS)).await;
+        time::delay_for(Duration::from_secs(BLOCK_TIME_SECS)).await;
         monerod.generate_blocks(1, &reward_address).await?;
     }
 }
