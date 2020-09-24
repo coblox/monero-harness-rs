@@ -264,8 +264,6 @@ impl IntoIterator for Args {
         let cmd = format!("{} & {}", self.monerod.args(), self.wallet.args());
         args.push(cmd);
 
-        println!("iter: {:?}", args);
-
         args.into_iter()
     }
 }
