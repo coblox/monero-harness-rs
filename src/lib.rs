@@ -29,7 +29,7 @@ use anyhow::Result;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use testcontainers::{clients::Cli, core::Port, Container, Docker, Image};
+use testcontainers::{clients::Cli, core::Port, Container, Docker};
 use tokio::time;
 
 use crate::wallet::{GetAddress, Transfer};
