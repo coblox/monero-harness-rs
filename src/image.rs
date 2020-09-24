@@ -29,7 +29,7 @@ impl Image for Monero {
             .logs()
             .stdout
             .wait_for_message(
-                "You are now synchronized with the network. You may now start monero-wallet-cli",
+                "The daemon is running offline and will not attempt to sync to the Monero network",
             )
             .unwrap();
 
@@ -111,6 +111,7 @@ pub struct Args {
 #[derive(Debug, Clone)]
 pub struct MonerodArgs {
     pub regtest: bool,
+    pub offline: bool,
     pub rpc_payment_allow_free_loopback: bool,
     pub confirm_external_bind: bool,
     pub non_interactive: bool,
@@ -138,6 +139,7 @@ impl Default for MonerodArgs {
     fn default() -> Self {
         MonerodArgs {
             regtest: true,
+            offline: true,
             rpc_payment_allow_free_loopback: true,
             confirm_external_bind: true,
             non_interactive: true,
@@ -172,6 +174,10 @@ impl MonerodArgs {
 
         if self.regtest {
             args.push("--regtest".to_string())
+        }
+
+        if self.offline {
+            args.push("--offline".to_string())
         }
 
         if self.rpc_payment_allow_free_loopback {
