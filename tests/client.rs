@@ -1,30 +1,36 @@
-use monero_harness_rs::{Client, Container};
+use monero_harness::Monero;
 use spectral::prelude::*;
 use testcontainers::clients::Cli;
 
+const ALICE_FUND_AMOUNT: u64 = 1_000_000_000_000;
+const BOB_FUND_AMOUNT: u64 = 0;
+
+fn init_cli() -> Cli {
+    Cli::default()
+}
+
+async fn init_monero(tc: &'_ Cli) -> Monero<'_> {
+    let monero = Monero::new(tc);
+    let _ = monero.init(ALICE_FUND_AMOUNT, BOB_FUND_AMOUNT).await;
+
+    monero
+}
+
 #[tokio::test]
 async fn init_accounts_for_alice_and_bob() {
-    let docker = Cli::default();
-    let container = Container::new(&docker);
-    let cli = Client::new(container.monerod_rpc_port, container.wallet_rpc_port);
+    let cli = init_cli();
+    let monero = init_monero(&cli).await;
 
-    let want_alice_balance = 1000;
-    let want_bob_balance = 0;
-
-    cli.init(want_alice_balance, want_bob_balance)
-        .await
-        .expect("failed to init");
-
-    let got_alice_balance = cli
+    let got_balance_alice = monero
         .get_balance_alice()
         .await
         .expect("failed to get alice's balance");
 
-    let got_bob_balance = cli
+    let got_balance_bob = monero
         .get_balance_bob()
         .await
         .expect("failed to get bob's balance");
 
-    assert_that!(got_alice_balance).is_equal_to(want_alice_balance);
-    assert_that!(got_bob_balance).is_equal_to(want_bob_balance);
+    assert_that!(got_balance_alice).is_equal_to(ALICE_FUND_AMOUNT);
+    assert_that!(got_balance_bob).is_equal_to(BOB_FUND_AMOUNT);
 }

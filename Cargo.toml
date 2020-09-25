@@ -1,5 +1,5 @@
 [package]
-name = "monero-harness-rs"
+name = "monero-harness"
 version = "0.1.0"
 authors = ["Tobin C. Harding <tobin@coblox.tech>"]
 edition = "2018"
