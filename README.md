@@ -1,15 +1,15 @@
 Monero Harness
 ==============
 
-Provides a JSON RPC client for monerod and monero-wallet-rpc
+Provides an implementation of `testcontainers::Image` for a monero image to run
+monerod and monero-wallet-rpc in a docker container.
+
+Also provides two standalone JSON RPC clients, one each of monerod and the wallet.
 
 Example Usage
 -------------
-```rust
-let cli = Client::default(); <!-- local host RPC client -->
 
-let header = cli.monerod.get_block_header_by_height(HEIGHT).await?;
-let balance = cli.wallet.get_balance().await?;
+Please see `tests/*` for example usage.
 
-```
+
 
