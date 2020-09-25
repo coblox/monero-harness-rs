@@ -27,7 +27,7 @@ async fn create_account_and_retrieve_it() {
     let monero = Monero::new(&tc);
     let cli = Client::localhost(monero.wallet_rpc_port);
 
-    let label = "Arbitrary Label"; // This is intentionally _not_ Alice or Bob.
+    let label = "Iron Man"; // This is intentionally _not_ Alice or Bob.
 
     let _ = cli
         .create_wallet("wallet")
