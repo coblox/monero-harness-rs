@@ -1,4 +1,4 @@
-use crate::{Request, Response};
+use crate::rpc::{Request, Response};
 
 use anyhow::Result;
 use reqwest::Url;

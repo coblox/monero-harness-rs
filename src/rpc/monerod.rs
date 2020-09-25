@@ -1,4 +1,7 @@
-use crate::{BlockHeader, Request, Response};
+use crate::{
+    rpc::{Request, Response},
+    BlockHeader,
+};
 
 use anyhow::Result;
 use reqwest::Url;
