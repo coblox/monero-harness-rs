@@ -32,7 +32,10 @@ use std::time::Duration;
 use testcontainers::{clients::Cli, core::Port, Container, Docker};
 use tokio::time;
 
-use crate::wallet::{GetAddress, Transfer};
+use crate::{
+    image::{MONEROD_RPC_PORT, WALLET_RPC_PORT},
+    wallet::{GetAddress, Transfer},
+};
 
 /// How often we mine a block.
 const BLOCK_TIME_SECS: u64 = 1;
@@ -62,13 +65,11 @@ impl<'c> Monero<'c> {
         let image = image::Monero::default()
             .with_mapped_port(Port {
                 local: monerod_rpc_port,
-                // TODO: Define const for internal monerod port.
-                internal: 28081,
+                internal: MONEROD_RPC_PORT,
             })
             .with_mapped_port(Port {
                 local: wallet_rpc_port,
-                // TODO: Define const for internal wallet port.
-                internal: 28083,
+                internal: WALLET_RPC_PORT,
             });
 
         println!("running image ...");

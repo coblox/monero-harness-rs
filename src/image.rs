@@ -4,7 +4,8 @@ use testcontainers::{
     Image,
 };
 
-// TODO: Switch to using 18081 port since --regtest is mainnet
+pub const MONEROD_RPC_PORT: u16 = 48081;
+pub const WALLET_RPC_PORT: u16 = 48083;
 
 #[derive(Debug)]
 pub struct Monero {
@@ -146,7 +147,7 @@ impl Default for MonerodArgs {
             no_igd: true,
             hide_my_port: true,
             rpc_bind_ip: "0.0.0.0".to_string(),
-            rpc_bind_port: 28081,
+            rpc_bind_port: MONEROD_RPC_PORT,
             fixed_difficulty: 1,
             data_dir: "/monero".to_string(),
         }
@@ -155,13 +156,14 @@ impl Default for MonerodArgs {
 
 impl Default for WalletArgs {
     fn default() -> Self {
+        let daemon_address = format!("localhost:{}", MONEROD_RPC_PORT);
         WalletArgs {
             disable_rpc_login: true,
             confirm_external_bind: true,
             wallet_dir: "/monero".into(),
             rpc_bind_ip: "0.0.0.0".into(),
-            rpc_bind_port: 28083,
-            daemon_address: "localhost:28081".into(),
+            rpc_bind_port: WALLET_RPC_PORT,
+            daemon_address,
             log_level: 4,
         }
     }
