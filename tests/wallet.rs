@@ -1,4 +1,4 @@
-use monero_harness::{wallet::Client, Monero};
+use monero_harness::{rpc::wallet::Client, Monero};
 use spectral::prelude::*;
 use testcontainers::clients::Cli;
 

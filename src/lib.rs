@@ -22,8 +22,7 @@
 //! Also provides standalone JSON RPC clients for monerod and monero-wallet-rpc.
 
 pub mod image;
-pub mod monerod;
-pub mod wallet;
+pub mod rpc;
 
 use anyhow::Result;
 use rand::Rng;
@@ -34,7 +33,10 @@ use tokio::time;
 
 use crate::{
     image::{MONEROD_RPC_PORT, WALLET_RPC_PORT},
-    wallet::{GetAddress, Transfer},
+    rpc::{
+        monerod,
+        wallet::{self, GetAddress, Transfer},
+    },
 };
 
 /// How often we mine a block.

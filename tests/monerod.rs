@@ -1,4 +1,4 @@
-use monero_harness::{monerod::Client, Monero};
+use monero_harness::{rpc::monerod::Client, Monero};
 use spectral::prelude::*;
 use std::time::Duration;
 use testcontainers::clients::Cli;
